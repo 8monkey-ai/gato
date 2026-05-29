@@ -1,0 +1,34 @@
+{
+  "name": "@8monkey/gato",
+  "version": "0.1.0",
+  "description": "Gato — AI sales agent harness built on Pi",
+  "keywords": [
+    "pi-package"
+  ],
+  "type": "module",
+  "scripts": {
+    "clean": "git clean -fdx -e '.env*' .",
+    "format": "oxfmt .",
+    "format:staged": "oxfmt --no-error-on-unmatched-pattern",
+    "lint": "oxlint",
+    "lint:staged": "oxlint --fix",
+    "typecheck": "tsc --noEmit",
+    "check": "bun lint && bun typecheck",
+    "fix": "bun lint:staged && bun format:staged"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.77.0",
+    "lefthook": "^2.1.9",
+    "oxfmt": "^0.52.0",
+    "oxlint": "^1.67.0",
+    "typescript": "^6.0.3"
+  },
+  "pi": {
+    "extensions": [
+      "./.pi/extensions"
+    ],
+    "prompts": [
+      "./.pi/prompts"
+    ]
+  }
+}

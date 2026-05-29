@@ -1,0 +1,8 @@
+{
+  "defaultProvider": "hebo",
+  "defaultThinkingLevel": "high",
+  "compaction": {
+    "enabled": false
+  },
+  "steeringMode": "all"
+}
