@@ -20,6 +20,11 @@ Gato gives a sales agent what it needs to hold real customer relationships:
   so replies stay fast and on-topic even in long-running relationships.
 - **Connects to your systems** — exposes your business tools over MCP, so the agent can look
   things up and take action — orders, inventory, records — as part of the conversation.
+- **Drop-in skills** — add a skill (a folder of instructions) to your skills directory and the
+  agent discovers it automatically, pulling it in whenever a conversation calls for it — no
+  wiring or code.
+- **Persistent conversations** — every conversation is saved automatically and can be resumed,
+  so each customer's thread is preserved and you pick up exactly where you left off.
 
 ## Requirements
 
@@ -41,17 +46,17 @@ extensions, and prompts that make up Gato.
 
 ## Your content
 
-Gato ships the agent; you provide the business context. Files in a project `.pi/` take
-precedence over the global versions in `~/.pi/`.
+Gato ships the agent; you provide the business context.
 
-| What | Where | Purpose |
-|------|-------|---------|
-| Business guidelines | `~/.pi/agent/AGENTS.md` | Your playbook, tone, and rules — appended to the system prompt |
-| Skills | `~/.pi/agent/skills/<name>/SKILL.md` | On-demand capabilities the agent loads when relevant |
-| Contact data | `~/.pi/user.json` | Free-form JSON about the person; used to personalize and to pass identifiers to tools |
-| Tool servers | `~/.pi/agent/mcp.json` | MCP servers to expose as agent tools |
-| Sessions | `~/.pi/agent/sessions/` | Conversation history — managed by Pi automatically |
-| Summary | `~/.pi/summary.md` | Auto-generated and injected for continuity (don't edit by hand) |
+| What | Where |
+|------|-------|
+| Business guidelines | `AGENTS.md` in the repo root |
+| Skills | `.pi/skills/` |
+| Contact data | `.pi/user.json` |
+| Tool servers | `.pi/agent/mcp.json` |
+| Sessions | `~/.pi/agent/sessions/` (auto-managed by Pi) |
+| Summary | `~/.pi/summary.md` (auto-generated, don't edit) |
+
 
 `mcp.json` format:
 
