@@ -7,7 +7,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { readPiFile, piFileMtime } from "./lib/helpers.ts";
 
-const STALENESS_DAYS = Number(process.env["PI_SUMMARY_STALENESS_DAYS"]) || 3;
+const STALENESS_DAYS = Number(process.env["GATO_SUMMARY_STALENESS_DAYS"]) || 3;
 
 function daysSince(date: Date): number {
   return (Date.now() - date.getTime()) / 86_400_000;

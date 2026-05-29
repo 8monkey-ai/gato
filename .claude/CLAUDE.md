@@ -32,7 +32,7 @@ Pi extension harness powering "Gato", an AI sales assistant. This repo is a **pi
 - **Helpers**: live in `extensions/lib/` — subdirs without `index.ts` are invisible to Pi's auto-discovery
 - **Types**: import from `@earendil-works/pi-coding-agent`; use minimal typing, prefer inference, avoid `any`
 - **Modules**: ESM only (`"type": "module"`), use `.ts` extension in imports
-- **Config from env**: use `process.env["VAR_NAME"]` (bracket notation — strict tsconfig requires it)
+- **Config from env**: use `process.env["VAR_NAME"]` (bracket notation — strict tsconfig requires it), prefixed `GATO_`
 
 ## Local Commands
 

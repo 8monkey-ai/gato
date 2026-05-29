@@ -75,8 +75,8 @@ Set via environment variables (Pi does not auto-load `.env` — `source` it or u
 
 | Variable | Default | Effect |
 |----------|---------|--------|
-| `PI_HISTORY_DAYS` | `60` | Days of chat history kept in context |
-| `PI_SUMMARY_STALENESS_DAYS` | `3` | Age before the conversation summary is regenerated |
+| `GATO_HISTORY_DAYS` | `60` | Days of chat history kept in context |
+| `GATO_SUMMARY_STALENESS_DAYS` | `3` | Age before the conversation summary is regenerated |
 
 Model provider, thinking level, and other defaults live in `.pi/settings.json`.
 
