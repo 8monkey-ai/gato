@@ -49,7 +49,9 @@ export default function registerMcpTools(pi: ExtensionAPI) {
     const raw = readPiFile("agent/mcp.json");
     if (!raw) return;
 
-    let config: { mcpServers?: Record<string, { directTools?: boolean; url?: string }> };
+    let config: {
+      mcpServers?: Record<string, { directTools?: boolean; url?: string; tools?: string[] }>;
+    };
     try {
       config = JSON.parse(raw);
     } catch {
@@ -71,6 +73,7 @@ export default function registerMcpTools(pi: ExtensionAPI) {
       }
 
       for (const tool of tools) {
+        if (def.tools && !def.tools.includes(tool.name)) continue;
         const url = def.url;
         const toolName = tool.name;
         pi.registerTool({
