@@ -17,7 +17,7 @@ export default function generateSummary(pi: ExtensionAPI) {
   pi.on("session_start", (_event, ctx) => {
     if (_event.reason === "new") return;
 
-    const mtime = piFileMtime("summary.md");
+    const mtime = piFileMtime("agent/summary.md");
     if (mtime && daysSince(mtime) < STALENESS_DAYS) return;
 
     const entries = ctx.sessionManager.getEntries();
@@ -63,7 +63,7 @@ export default function generateSummary(pi: ExtensionAPI) {
         { encoding: "utf-8", timeout: 60_000 },
       ).trim();
 
-      if (summary) writeFileSync(join(homedir(), ".pi", "summary.md"), summary);
+      if (summary) writeFileSync(join(homedir(), ".pi", "agent", "summary.md"), summary);
     } catch {}
   });
 }

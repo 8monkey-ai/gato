@@ -53,10 +53,10 @@ Gato ships the agent; you provide the business context.
 |------|-------|
 | Business guidelines | `AGENTS.md` in the repo root |
 | Skills | `.pi/skills/` |
-| Contact data | `.pi/user.json` |
+| Contact data | `.pi/agent/user.json` |
 | Tool servers | `.pi/agent/mcp.json` |
 | Sessions | `~/.pi/agent/sessions/` (auto-managed by Pi) |
-| Summary | `~/.pi/summary.md` (auto-generated, don't edit) |
+| Summary | `~/.pi/agent/summary.md` (auto-generated, don't edit) |
 
 `mcp.json` format:
 
