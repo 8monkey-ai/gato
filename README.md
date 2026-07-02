@@ -12,7 +12,7 @@ Gato turns Pi into a conversational sales representative for a messaging channel
 - 🎯 **Focused context** — keeps only recent conversation in view (configurable, default 60 days) and strips stale tool chatter from earlier turns, so replies stay fast and on-topic even in long-running relationships. Each part can be toggled independently.
 - 🔌 **Connects to your systems** — exposes your business tools over MCP, so the agent can look things up and take action — orders, inventory, records — as part of the conversation.
 - 🧩 **Drop-in skills** — add a skill (a folder of instructions) to your skills directory and the agent discovers it automatically, pulling it in whenever a conversation calls for it — no wiring or code.
-- 💾 **Persistent conversations** — every conversation is saved automatically and can be resumed, so each customer's thread is preserved and you pick up exactly where you left off.
+- 💾 **Persistent conversations** — every conversation is saved automatically and can be resumed, so each customer's thread is preserved and you pick up exactly where you left off. Closed sessions are gzipped to keep disk usage low; `/resume-compressed` reopens one.
 
 ## 📦 Requirements
 
@@ -82,4 +82,4 @@ Model provider, thinking level, and other defaults live in `.pi/settings.json`.
 
 ## 🧪 Customizing
 
-Gato's behavior comes from two Pi packages declared in `.pi/settings.json` — [`@8monkey/pi-context-history`](https://www.npmjs.com/package/@8monkey/pi-context-history) for cross-session memory and context trimming, and [`pi-mcp-adapter`](https://www.npmjs.com/package/pi-mcp-adapter) for MCP tools — plus the summary prompt in `.pi/prompts/compact.md`. Pi installs missing packages automatically on startup; edit the prompt, swap packages, or add your own extensions under `.pi/extensions/`.
+Gato's behavior comes from three Pi packages declared in `.pi/settings.json` — [`@8monkey/pi-context-history`](https://www.npmjs.com/package/@8monkey/pi-context-history) for cross-session memory and context trimming, [`pi-mcp-adapter`](https://www.npmjs.com/package/pi-mcp-adapter) for MCP tools, and [`@8monkey/pi-session-gzip`](https://www.npmjs.com/package/@8monkey/pi-session-gzip) for compressing closed sessions — plus the summary prompt in `.pi/prompts/compact.md`. Pi installs missing packages automatically on startup; edit the prompt, swap packages, or add your own extensions under `.pi/extensions/`.

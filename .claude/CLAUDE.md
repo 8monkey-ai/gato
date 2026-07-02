@@ -25,6 +25,7 @@ Pi harness powering "Gato", an AI sales assistant. This repo is a **pi-package**
   - `PI_COMPACT` — rolling summary in `~/.pi/agent/compact.md`, regenerated on stale resume (`PI_COMPACT_STALENESS_DAYS`) and injected into the system prompt; `/compact-session` to force
   - `PI_APPEND_MESSAGE` — `/add-user-message` and `/add-assistant-message` commands
 - **`pi-mcp-adapter`** — connects MCP servers from `.pi/mcp.json`; `directTools: true` registers server tools individually instead of behind the `mcp` proxy tool
+- **`@8monkey/pi-session-gzip`** — gzips closed session files on shutdown; `/resume-compressed` restores and reopens one
 
 Pi installs missing packages automatically on startup; `pi install -l npm:<pkg>` adds a new one.
 
