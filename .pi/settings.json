@@ -4,5 +4,10 @@
   "compaction": {
     "enabled": false
   },
-  "steeringMode": "all"
+  "steeringMode": "all",
+  "packages": [
+    "npm:@8monkey/pi-context-history",
+    "npm:pi-mcp-adapter",
+    "npm:@8monkey/pi-session-gzip"
+  ]
 }

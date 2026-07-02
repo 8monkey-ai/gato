@@ -2,66 +2,54 @@
 
 ## Project Purpose
 
-Pi extension harness powering "Gato", an AI sales assistant. This repo is a **pi-package** — a collection of extensions, prompts, and settings that Pi discovers at runtime via jiti (no build step).
+Pi harness powering "Gato", an AI sales assistant. This repo is a **pi-package**: prompts, skills, settings, and MCP config that Pi discovers at runtime (no build step). Runtime behavior comes from two installed Pi packages rather than local extensions.
 
 ## Architecture
 
 ```
 .pi/
-├── extensions/          ← TypeScript extensions (auto-loaded by Pi via jiti)
-│   ├── lib/helpers.ts   ← shared utils (not auto-loaded — no index.ts)
-│   ├── filter-history.ts
-│   ├── generate-summary.ts
-│   ├── inject-system-prompt.ts
-│   └── register-mcp-tools.ts
+├── npm/                 ← project-local Pi package installs (gitignored)
 ├── prompts/
-│   └── generate-summary.md
-├── settings.json        ← Pi runtime settings
+│   └── compact.md       ← summary prompt for pi-context-history
+├── skills/              ← sales-domain skills (auto-discovered)
+├── mcp.json             ← MCP servers for pi-mcp-adapter
+├── settings.json        ← Pi runtime settings + `packages` list
 └── SYSTEM.md            ← base system prompt
 ```
 
-## Extension Lifecycle (event order)
+## Installed Pi packages (declared in `.pi/settings.json` → `packages`)
 
-1. `session_start` — fires at Pi startup (generate-summary hooks here)
-2. `before_agent_start` — fires after user submits a prompt (inject-system-prompt, register-mcp-tools)
-3. `context` — fires before each LLM call (filter-history)
+- **`@8monkey/pi-context-history`** — context management; four features behind `PI_` flags (on unless set to `false`/`0`):
+  - `PI_TRIM_HISTORY` — drop messages older than `PI_HISTORY_DAYS`
+  - `PI_STRIP_TOOL_HISTORY` — strip prior turns' tool calls/results
+  - `PI_COMPACT` — rolling summary in `~/.pi/agent/compact.md`, regenerated on stale resume (`PI_COMPACT_STALENESS_DAYS`) and injected into the system prompt; `/compact-session` to force
+  - `PI_APPEND_MESSAGE` — `/add-user-message` and `/add-assistant-message` commands
+- **`pi-mcp-adapter`** — connects MCP servers from `.pi/mcp.json`; `directTools: true` registers server tools individually instead of behind the `mcp` proxy tool
+- **`@8monkey/pi-session-gzip`** — gzips closed session files on shutdown; `/resume-compressed` restores and reopens one
+
+Pi installs missing packages automatically on startup; `pi install -l npm:<pkg>` adds a new one.
 
 ## Conventions
 
-- **Naming**: verb-first for extensions (file and export match: `filter-history.ts` → `filterHistory`)
-- **Helpers**: live in `extensions/lib/` — subdirs without `index.ts` are invisible to Pi's auto-discovery
-- **Types**: import from `@earendil-works/pi-coding-agent`; use minimal typing, prefer inference, avoid `any`
-- **Modules**: ESM only (`"type": "module"`), use `.ts` extension in imports
-- **Config from env**: use `process.env["VAR_NAME"]` (bracket notation — strict tsconfig requires it), prefixed `GATO_`
+- **Config from env**: `PI_`-prefixed variables, documented in `.env.template` (Pi does not auto-load `.env` — source it or use direnv)
+- **Skills**: one folder per topic under `.pi/skills/<name>/SKILL.md`
+- **Prompt override**: `prompts/compact.md` must keep the `{conversation_history}` placeholder
 
 ## Local Commands
 
 ```sh
-bun install          # install deps
-bun check            # lint + typecheck (CI gate)
-bun fix              # auto-fix lint + format
-bun lint             # oxlint only
-bun format           # oxfmt only
-bun typecheck        # tsc --noEmit
+bun install          # install dev deps (lefthook, oxfmt)
+bun format           # oxfmt
 bun clean            # git clean (keeps .env*)
 ```
 
 ## Change Workflow
 
-1. Read the relevant extension(s) before editing
-2. Minimize changes — small, focused diffs
-3. Run `bun check` before considering work done
-4. Format with `bun format` (lefthook does this on commit too)
+1. Minimize changes — small, focused diffs
+2. Format with `bun format` (lefthook does this on commit too)
 
 ## Key Technical Decisions
 
-- **No build step**: jiti transpiles TypeScript at runtime
-- **readPiFile()**: reads from project `.pi/` first, falls back to `~/.pi/` (project wins)
-- **No `_` prefix convention**: Pi has no file exclusion pattern — use subdirectories instead
-- **Strict TypeScript**: `noUncheckedIndexedAccess`, `verbatimModuleSyntax`, `noUnusedLocals`
-- **Oxlint + Oxfmt**: Rust-based, fast — replaces ESLint/Prettier
-
-## Guardrails
-
-- Extensions must export a default function matching `ExtensionFactory` signature
-- Keep extensions independent — no cross-extension imports (only `lib/helpers.ts` is shared)
+- **No local extensions**: context management and MCP support are installed Pi packages; custom extensions would go in `.pi/extensions/` if ever needed again
+- **Project-local package installs**: `.pi/npm/` is gitignored; `settings.json` is the source of truth and Pi restores missing packages on startup
+- **Oxfmt**: Rust-based formatter — no linter or typechecker since there's no local TS code

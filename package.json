@@ -10,23 +10,13 @@
     "clean": "git clean -fdx -e '.env*' .",
     "format": "oxfmt .",
     "format:staged": "oxfmt --no-error-on-unmatched-pattern",
-    "lint": "oxlint",
-    "lint:staged": "oxlint --fix",
-    "typecheck": "tsc --noEmit",
-    "check": "bun lint && bun typecheck",
-    "fix": "bun lint:staged && bun format:staged"
+    "check": "bun format"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "^0.77.0",
     "lefthook": "^2.1.9",
-    "oxfmt": "^0.52.0",
-    "oxlint": "^1.67.0",
-    "typescript": "^6.0.3"
+    "oxfmt": "^0.52.0"
   },
   "pi": {
-    "extensions": [
-      "./.pi/extensions"
-    ],
     "prompts": [
       "./.pi/prompts"
     ]

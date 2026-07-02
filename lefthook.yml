@@ -20,12 +20,7 @@ post-rewrite:
       run: bun run clean
 
 pre-commit:
-  parallel: true
   commands:
     format:
       glob: "**/*.{js,jsx,ts,tsx,json,jsonc,md,mdx,css,html,yaml,yml,toml}"
       run: bun run format:staged -- {staged_files} && git add {staged_files}
-
-    lint:
-      glob: "**/*.{ts,tsx,js,jsx,mjs,cjs}"
-      run: bun run lint:staged -- {staged_files} && git add {staged_files}
