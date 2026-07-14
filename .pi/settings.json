@@ -8,6 +8,7 @@
   "packages": [
     "npm:@8monkey/pi-context-history",
     "npm:pi-mcp-adapter",
-    "npm:@8monkey/pi-session-gzip"
+    "npm:@8monkey/pi-session-gzip",
+    "npm:pi-acp"
   ]
 }
