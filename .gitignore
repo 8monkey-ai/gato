@@ -4,3 +4,6 @@ node_modules
 .DS_Store
 *.tsbuildinfo
 .pi/npm
+.pi/skills
+.pi/mcp.json
+AGENTS.md
