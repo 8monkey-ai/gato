@@ -9,6 +9,7 @@
     "npm:@8monkey/pi-context-history",
     "npm:pi-mcp-adapter",
     "npm:@8monkey/pi-session-gzip",
-    "npm:pi-acp"
+    "npm:pi-acp",
+    "npm:@8monkey/pi-media"
   ]
 }
