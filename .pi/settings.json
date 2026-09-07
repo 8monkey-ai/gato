@@ -10,6 +10,7 @@
     "npm:pi-mcp-adapter",
     "npm:@8monkey/pi-session-gzip",
     "npm:pi-acp",
-    "npm:@8monkey/pi-media"
+    "npm:@8monkey/pi-media",
+    "git:github.com/turisanapo/pi-gato-knowledge-reader"
   ]
 }

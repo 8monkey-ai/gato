@@ -35,13 +35,14 @@ pi -c                   # start — continues the most recent conversation
 
 Gato ships the agent; you provide the business context.
 
-| What                | Where                                                 |
-| ------------------- | ----------------------------------------------------- |
-| Business guidelines | `AGENTS.md` in the repo root                          |
-| Skills              | `.pi/skills/`                                         |
-| Tool servers        | `.pi/mcp.json`                                        |
-| Sessions            | `~/.pi/agent/sessions/` (auto-managed by Pi)          |
-| Summary             | `~/.pi/agent/compact.md` (auto-generated, don't edit) |
+| What                | Where                                                                                                       |
+| ------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Business guidelines | `AGENTS.md` in the repo root                                                                                |
+| Skills              | `.pi/skills/`                                                                                               |
+| Knowledge base      | `knowledge/` — `Skill.md` plus one `.md` per topic, read by `read_skill`; `/country MY\|PH` filters content |
+| Tool servers        | `.pi/mcp.json`                                                                                              |
+| Sessions            | `~/.pi/agent/sessions/` (auto-managed by Pi)                                                                |
+| Summary             | `~/.pi/agent/compact.md` (auto-generated, don't edit)                                                       |
 
 `mcp.json` format:
 
