@@ -81,6 +81,19 @@ Context management comes from the [`@8monkey/pi-context-history`](https://www.np
 
 Model provider, thinking level, and other defaults live in `.pi/settings.json`.
 
+## 🔌 Plugins
+
+Gato's behavior comes from the Pi packages declared in `.pi/settings.json`. Pi installs them automatically on first startup.
+
+| Package                                                                                    | What it does                                                                                                                                                                           |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@8monkey/pi-context-history`](https://www.npmjs.com/package/@8monkey/pi-context-history) | Memory across sessions and context trimming: rolling summary, history window, tool-chatter stripping, `/add-user-message` and `/add-assistant-message`. Configured by the flags above. |
+| [`pi-mcp-adapter`](https://www.npmjs.com/package/pi-mcp-adapter)                           | Exposes the MCP servers in `.pi/mcp.json` as tools.                                                                                                                                    |
+| [`@8monkey/pi-session-gzip`](https://www.npmjs.com/package/@8monkey/pi-session-gzip)       | Gzips closed sessions to save disk. `/resume-compressed` reopens one.                                                                                                                  |
+| [`pi-acp`](https://www.npmjs.com/package/pi-acp)                                           | [Agent Client Protocol](https://agentclientprotocol.com) adapter, so Gato can run inside ACP clients such as Zed.                                                                      |
+| [`@8monkey/pi-media`](https://www.npmjs.com/package/@8monkey/pi-media)                     | Attaches local images, audio, video, and PDFs mentioned with `@path` to the request. Attachments are sent on the `hebo` provider; other providers receive the path as text.            |
+| [`pi-gato-knowledge-reader`](https://github.com/turisanapo/pi-gato-knowledge-reader)       | Appends `knowledge/Skill.md` to the system prompt, adds the `read_skill` tool for `knowledge/<topic>.md`, and the `/country MY\|PH` filter. `GATO_KNOWLEDGE_DIR` overrides the folder. |
+
 ## 🧪 Customizing
 
-Gato's behavior comes from three Pi packages declared in `.pi/settings.json` — [`@8monkey/pi-context-history`](https://www.npmjs.com/package/@8monkey/pi-context-history) for cross-session memory and context trimming, [`pi-mcp-adapter`](https://www.npmjs.com/package/pi-mcp-adapter) for MCP tools, and [`@8monkey/pi-session-gzip`](https://www.npmjs.com/package/@8monkey/pi-session-gzip) for compressing closed sessions — plus the summary prompt in `.pi/prompts/compact.md`. Pi installs missing packages automatically on startup; edit the prompt, swap packages, or add your own extensions under `.pi/extensions/`.
+Edit the summary prompt in `.pi/prompts/compact.md`, swap packages in `.pi/settings.json`, or add your own extensions under `.pi/extensions/`.
