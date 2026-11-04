@@ -56,7 +56,10 @@ export type ChannelConnection = {
   send(chatId: string, part: OutboundPart): Promise<SendOutcome>;
   fetchAttachment(
     source: string,
+    signal: AbortSignal,
   ): Promise<{ bytes: Uint8Array; mediaType?: string }>;
+  // False when the connection can no longer receive or send, e.g. polling stopped. Shown in /health.
+  healthy?(): boolean;
   // Optional native capabilities. Absence means the core uses the chat-folder fallback.
   typing?(chatId: string): Promise<void>;
   assignment?: {

@@ -6,8 +6,7 @@ RUN bun install --frozen-lockfile --production
 COPY src ./src
 COPY prompts ./prompts
 
-RUN mkdir /data && chown bun:bun /data
-VOLUME /data
+# The data folder must be mounted at /data. The image creates no /data, so a missing mount stops startup.
 ENV GATO_DATA_DIR=/data
 USER bun
 EXPOSE 3000

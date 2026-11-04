@@ -20,7 +20,7 @@ export const contactSchema = z.looseObject({
 });
 
 const attachment = z.looseObject({
-  type: z.string(),
+  type: z.string().nullish(),
   url: z.string(),
   mime: z.string().nullish(),
   mimeType: z.string().nullish(),
@@ -38,6 +38,25 @@ const content = z.looseObject({
   latitude: z.number().nullish(),
   longitude: z.number().nullish(),
   address: z.string().nullish(),
+  attachments: z.array(attachment).nullish(),
+  title: z.string().nullish(),
+  subtitle: z.string().nullish(),
+  replies: z.array(z.string()).nullish(),
+  buttons: z.array(z.looseObject({ text: z.string().nullish() })).nullish(),
+  template: z
+    .looseObject({
+      name: z.string().nullish(),
+      components: z
+        .array(
+          z.looseObject({
+            type: z.string().nullish(),
+            text: z.string().nullish(),
+          }),
+        )
+        .nullish(),
+    })
+    .nullish(),
+  story: attachment.nullish(),
 });
 
 const envelope = { event_id: z.string(), contact: contactSchema };

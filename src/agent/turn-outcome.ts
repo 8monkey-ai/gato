@@ -1,4 +1,4 @@
-import type { DeliveryResult } from "../delivery/deliver.ts";
+import type { DeliveryResult } from "../delivery/sender.ts";
 import type { TurnEnd } from "../record/types.ts";
 import { BudgetExceededError } from "./budget.ts";
 import type { Generation } from "./turn-generate.ts";
@@ -11,10 +11,11 @@ export function abortEnd(
   signal: AbortSignal,
   budgetSignal: AbortSignal,
 ): End | undefined {
+  // The scheduler aborts with "interrupted" for new customer input and with "shutdown" at shutdown.
   if (signal.aborted)
-    return signal.reason === "shutdown"
-      ? { outcome: "interrupted", reason: "shutdown" }
-      : { outcome: "interrupted" };
+    return signal.reason === "interrupted"
+      ? { outcome: "superseded" }
+      : { outcome: "interrupted", reason: "shutdown" };
   if (budgetSignal.aborted)
     return { outcome: "timed-out", reason: "time limit reached" };
   return undefined;

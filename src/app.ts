@@ -6,11 +6,14 @@ import {
   readAppConfig,
   readSummaryPrompt,
 } from "./app/settings.ts";
+import {
+  checkToolNames,
+  warnUnpreparedCategories,
+} from "./app/startup-checks.ts";
 import { wireServices } from "./app/wiring.ts";
 import type { ChannelConnection } from "./channels/channel.ts";
 import { createLogger, type Logger } from "./log.ts";
 import { loadRevision } from "./skills/loader.ts";
-import { chatKey } from "./storage/chat-files.ts";
 import { openChatStore } from "./storage/chat-store.ts";
 import { acquireInstanceLock } from "./storage/instance-lock.ts";
 import { connectMcpServers } from "./tools/mcp-servers.ts";
@@ -29,7 +32,7 @@ export type Health = {
   ready: boolean;
   storage: "writable";
   damagedChats: number;
-  connections: { id: string; started: boolean }[];
+  connections: { id: string; started: boolean; healthy: boolean }[];
   mcpServers: string[];
   models: ModelsCheck;
   nudges: ReturnType<Services["checker"]["readiness"]>;
@@ -83,10 +86,10 @@ async function openStorage(
     log,
     now,
   });
-  const damagedChats = new Set(store.damaged().map((d) => chatKey(d.ref))).size;
+  const damagedChats = store.damaged().length;
   if (damagedChats > 0)
     log.warn("storage.damaged_chats", { count: damagedChats });
-  return { release, store, damagedChats };
+  return { release, store };
 }
 
 async function modelAccess({ settings }: Config, deps: AppDeps, log: Logger) {
@@ -106,18 +109,15 @@ async function assemble(
 ) {
   const { settings } = config;
   const now = deps.now ?? (() => new Date());
-  const { release, store, damagedChats } = await openStorage(
-    config,
-    log,
-    now,
-    cleanup,
-  );
+  const { release, store } = await openStorage(config, log, now, cleanup);
   await checkInstructions(config, log);
+  warnUnpreparedCategories(settings.preparationModels, log);
   const summaryPrompt = await readSummaryPrompt(settings.summaryPromptFile);
   const { provider, models } = await modelAccess(config, deps, log);
   const mcp = await connectMcpServers(config.mcpServers, log);
   cleanup.push(() => mcp.close());
   const connections = await createConnections(config, log, cleanup);
+  await checkToolNames(connections.values(), mcp.tools);
   const services = wireServices({
     settings,
     store,
@@ -135,7 +135,7 @@ async function assemble(
     connections,
     services,
     routes,
-    damagedChats,
+    store,
     models,
     mcp,
     release,
@@ -150,9 +150,11 @@ function lifecycle(app: Assembled, log: Logger) {
   let ready = false;
   let stopping: Promise<void> | undefined;
   const stopAll = async () => {
-    await services.checker.stop();
+    services.checker.stop();
+    // The scheduler also ends running nudge turns, so the running check can finish after it.
     // Running turns still send replies and use contact tools, so connections stop after them.
     await services.scheduler.stop(settings.shutdownGraceMs);
+    await services.checker.settled();
     for (const [id, connection] of connections)
       await connection
         .stop()
@@ -192,18 +194,22 @@ export async function createApp(deps: AppDeps) {
     throw error;
   }
   const life = lifecycle(app, log);
-  const health = (): Health => ({
-    ready: life.ready(),
-    storage: "writable",
-    damagedChats: app.damagedChats,
-    connections: [...app.connections.keys()].map((id) => ({
+  const health = (): Health => {
+    const connections = [...app.connections].map(([id, connection]) => ({
       id,
       started: life.started.has(id),
-    })),
-    mcpServers: config.mcpServers.map((server) => server.id),
-    models: app.models,
-    nudges: app.services.checker.readiness(),
-  });
+      healthy: connection.healthy?.() ?? true,
+    }));
+    return {
+      ready: life.ready() && connections.every((c) => c.healthy),
+      storage: "writable",
+      damagedChats: app.store.damaged().length,
+      connections,
+      mcpServers: config.mcpServers.map((server) => server.id),
+      models: app.models,
+      nudges: app.services.checker.readiness(),
+    };
+  };
   const fetch = createFetch({
     routes: app.routes,
     health,

@@ -3,22 +3,33 @@ import type { MessagePayload } from "./payloads.ts";
 
 type Content = MessagePayload["message"]["message"];
 type MappedContent = Pick<InboundMessage, "text" | "attachments">;
+type FileContent = NonNullable<Content["attachment"]>;
+type Category = InboundAttachment["category"];
 
-const categories: Record<string, InboundAttachment["category"]> = {
+const categories: Record<string, Category> = {
   image: "image",
   file: "document",
   audio: "audio",
   video: "video",
 };
 
+function mediaCategory(mediaType?: string): Category {
+  if (!mediaType) return "other";
+  const top = mediaType.split("/")[0] ?? "";
+  return categories[top] ?? "document";
+}
+
 function toAttachment(
-  attachment: NonNullable<Content["attachment"]>,
+  attachment: FileContent,
+  category?: Category,
 ): InboundAttachment {
   const size = Number(attachment.size);
+  const mediaType = attachment.mime ?? attachment.mimeType ?? undefined;
   return {
-    category: categories[attachment.type] ?? "other",
+    category:
+      category ?? categories[attachment.type ?? ""] ?? mediaCategory(mediaType),
     source: attachment.url,
-    mediaType: attachment.mime ?? attachment.mimeType ?? undefined,
+    mediaType,
     fileName: attachment.fileName ?? undefined,
     size: attachment.size != null && Number.isFinite(size) ? size : undefined,
   };
@@ -29,6 +40,8 @@ function joined(parts: (string | null | undefined)[], separator: string) {
   return text === "" ? undefined : text;
 }
 
+const textOnly = (text?: string): MappedContent => ({ text, attachments: [] });
+
 function location(content: Content) {
   const point =
     content.latitude != null && content.longitude != null
@@ -37,25 +50,53 @@ function location(content: Content) {
   return joined(["[location]", content.address, point], " ");
 }
 
+function template({ template }: Content) {
+  const name = template?.name ? `[template ${template.name}]` : "[template]";
+  const body = (template?.components ?? [])
+    .filter((component) => component.type?.toLowerCase() === "body")
+    .map((component) => component.text);
+  return joined([name, ...body], "\n");
+}
+
+function storyReply({ story }: Content): MappedContent {
+  const category = story?.type === "video" ? "video" : "image";
+  return {
+    text: "[story reply]",
+    attachments: story ? [toAttachment(story, category)] : [],
+  };
+}
+
+const mappers: Record<string, (content: Content) => MappedContent> = {
+  text: (content) => textOnly(content.text ?? undefined),
+  attachment: ({ attachment }) => ({
+    text: attachment?.description || undefined,
+    attachments: attachment ? [toAttachment(attachment)] : [],
+  }),
+  email: (content) => ({
+    text: joined([content.subject, content.message], "\n\n"),
+    attachments: (content.attachments ?? []).map((file) => toAttachment(file)),
+  }),
+  location: (content) => textOnly(location(content)),
+  quick_reply: (content) =>
+    textOnly(joined([content.title, ...(content.replies ?? [])], "\n")),
+  card: (content) =>
+    textOnly(
+      joined(
+        [
+          content.title,
+          content.subtitle,
+          ...(content.buttons ?? []).map((button) => button.text),
+        ],
+        "\n",
+      ),
+    ),
+  whatsapp_template: (content) => textOnly(template(content)),
+  story_reply: storyReply,
+};
+
 export function mapContent(content: Content): MappedContent {
-  switch (content.type) {
-    case "text":
-      return { text: content.text ?? undefined, attachments: [] };
-    case "attachment":
-      return {
-        text: content.attachment?.description || undefined,
-        attachments: content.attachment
-          ? [toAttachment(content.attachment)]
-          : [],
-      };
-    case "email":
-      return {
-        text: joined([content.subject, content.message], "\n\n"),
-        attachments: [],
-      };
-    case "location":
-      return { text: location(content), attachments: [] };
-    default:
-      return { text: `[unsupported ${content.type} message]`, attachments: [] };
-  }
+  const mapper = mappers[content.type];
+  return mapper
+    ? mapper(content)
+    : textOnly(`[unsupported ${content.type} message]`);
 }

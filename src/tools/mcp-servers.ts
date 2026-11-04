@@ -29,7 +29,7 @@ function readServer(root: EnvReader, id: string): McpServerConfig {
   );
   if (transport === "stdio") {
     if (env.optionalString("TOKEN_ENV") !== undefined)
-      env.custom("TOKEN_ENV", "unset when TRANSPORT is stdio", () => undefined);
+      env.problem("TOKEN_ENV", "must be unset when TRANSPORT is stdio");
     return {
       id,
       transport,

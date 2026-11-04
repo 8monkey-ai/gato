@@ -6,37 +6,60 @@ import { createContactTools } from "./contact-tools.ts";
 const signal = new AbortController().signal;
 const identifier = { type: "string", description: "The contact's identifier." };
 
+const schema = (properties: Record<string, unknown>) => ({
+  type: "object",
+  properties: { identifier, ...properties },
+  required: ["identifier", ...Object.keys(properties)],
+});
+
+const serverTools = [
+  {
+    name: "get_contact",
+    description: "Get a contact.",
+    inputSchema: schema({}),
+  },
+  {
+    name: "add_contact_tags",
+    description: "Add tags to a contact.",
+    inputSchema: schema({ tags: { type: "array" } }),
+  },
+  {
+    name: "update_contact",
+    description: "Update a contact.",
+    inputSchema: schema({ firstName: { type: "string" } }),
+  },
+  {
+    name: "update_conversation_status",
+    description: "Open or close a conversation.",
+    inputSchema: schema({ status: { type: "string" } }),
+  },
+  {
+    name: "merge_contacts",
+    description: "Merge two contacts.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        primaryContactId: { type: "number" },
+        secondaryContactId: { type: "number" },
+      },
+    },
+  },
+  {
+    name: "list_contacts",
+    description: "List contacts.",
+    inputSchema: { type: "object", properties: { limit: {} } },
+  },
+  {
+    name: "tag_contacts",
+    description: "Tag many contacts.",
+    inputSchema: schema({ contactIds: { type: "array" } }),
+  },
+];
+
 function fakeClient() {
   const calls: [string, unknown][] = [];
-  const schema = (properties: Record<string, unknown>) => ({
-    type: "object",
-    properties: { identifier, ...properties },
-    required: ["identifier", ...Object.keys(properties)],
-  });
   const client: Pick<McpClient, "tools" | "call"> = {
-    tools: () =>
-      Promise.resolve([
-        {
-          name: "get_contact",
-          description: "Get a contact.",
-          inputSchema: schema({}),
-        },
-        {
-          name: "add_contact_tags",
-          description: "Add tags to a contact.",
-          inputSchema: schema({ tags: { type: "array" } }),
-        },
-        {
-          name: "update_contact",
-          description: "Update a contact.",
-          inputSchema: schema({ firstName: { type: "string" } }),
-        },
-        {
-          name: "update_conversation_status",
-          description: "Open or close a conversation.",
-          inputSchema: schema({ status: { type: "string" } }),
-        },
-      ]),
+    tools: () => Promise.resolve(serverTools),
     call: (name, args) => {
       calls.push([name, args]);
       return Promise.resolve({ isError: false, output: "done" });
@@ -183,6 +206,23 @@ test("refuses status changes until they are configured", async () => {
 test("a permitted tool the server does not offer fails at creation", async () => {
   const { client } = fakeClient();
   await expect(
-    createContactTools(client, { ...policy, tools: ["merge_contacts"] }),
-  ).rejects.toThrow("does not offer the permitted tools: merge_contacts");
+    createContactTools(client, { ...policy, tools: ["delete_contact"] }),
+  ).rejects.toThrow(
+    "respond.io MCP server does not offer the permitted tools: delete_contact",
+  );
+});
+
+test("a permitted tool that can reach other contacts fails at creation", async () => {
+  const { client } = fakeClient();
+  const tools = [
+    "get_contact",
+    "merge_contacts",
+    "list_contacts",
+    "tag_contacts",
+  ];
+  await expect(
+    createContactTools(client, { ...policy, tools }),
+  ).rejects.toThrow(
+    "respond.io MCP tools cannot be limited to the current contact: merge_contacts, list_contacts, tag_contacts",
+  );
 });

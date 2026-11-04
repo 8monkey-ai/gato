@@ -1,6 +1,9 @@
 import type { ModelProvider } from "../agent/models.ts";
 import { createTurnRunner } from "../agent/turn.ts";
-import { retrieveMissing } from "../attachments/retrieve.ts";
+import {
+  createAttachmentRetrieval,
+  type RetrieveAttachments,
+} from "../attachments/retrieve.ts";
 import type { ChannelConnection } from "../channels/channel.ts";
 import type { Settings } from "../config/settings.ts";
 import { type Controls, createControls } from "../conversation/controls.ts";
@@ -51,34 +54,42 @@ function operatorRoutes(
   });
 }
 
-function attachmentRetrieval(
+function retrievalAfterIngest(
   { store, log }: Core,
   connection: (id: string) => ChannelConnection,
+  retrieve: RetrieveAttachments,
 ) {
   return (ref: ChatRef) =>
-    retrieveMissing({
+    retrieve({
       store,
       ref,
       connection: connection(ref.connectionId),
       log: log.child(ref),
+      signal: AbortSignal.timeout(60_000),
     });
 }
 
-export function wireServices(core: Core) {
-  const { settings, store, log, now } = core;
-  const connection = (id: string) => {
-    const found = core.connections.get(id);
+const connectionLookup =
+  ({ connections }: Core) =>
+  (id: string) => {
+    const found = connections.get(id);
     if (!found) throw new Error(`Unknown connection: ${id}`);
     return found;
   };
+
+export function wireServices(core: Core) {
+  const { settings, store, log, now } = core;
+  const connection = connectionLookup(core);
   const controls = createControls({
     store,
     connection,
     labels: settings.labels,
     log,
   });
+  const retrieveAttachments = createAttachmentRetrieval();
   const runTurn = createTurnRunner({
     ...core,
+    retrieveAttachments,
     controls,
     connection,
     skillsDir: settings.skillsDir,
@@ -98,7 +109,11 @@ export function wireServices(core: Core) {
     now,
     onCustomerMessage: scheduler.customerMessage,
     onOwnershipChange: scheduler.ownershipChange,
-    onNewAttachments: attachmentRetrieval(core, connection),
+    onNewAttachments: retrievalAfterIngest(
+      core,
+      connection,
+      retrieveAttachments,
+    ),
   });
   const checker = createNudgeChecker({
     store,

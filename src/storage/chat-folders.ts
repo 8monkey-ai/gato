@@ -57,9 +57,25 @@ function attachmentFiles(dataDir: string) {
   };
 }
 
+const exists = (file: string) =>
+  fs.access(file).then(
+    () => true,
+    () => false,
+  );
+
 function textFiles(dataDir: string) {
-  const { fileOf, write } = folderPaths(dataDir);
+  const { dirOf, fileOf, write } = folderPaths(dataDir);
   return {
+    // A revision's instructions never change, so an existing file is kept.
+    saveInstructions: async (
+      ref: ChatRef,
+      revisionId: string,
+      text: string,
+    ) => {
+      const relative = `instructions/${plainFileName(`${revisionId}.md`)}`;
+      if (!(await exists(path.join(dirOf(ref), relative))))
+        await write(ref, relative, text);
+    },
     readSummary: async (ref: ChatRef) => {
       const text = await readOptional(fileOf(ref, "summary.txt"));
       return text === undefined ? undefined : parseSummary(text);
@@ -70,11 +86,7 @@ function textFiles(dataDir: string) {
         "summary.txt",
         `Generated: ${summary.generatedAt}\n\n${summary.text}`,
       ),
-    fileExists: (ref: ChatRef, name: string) =>
-      fs.access(fileOf(ref, name)).then(
-        () => true,
-        () => false,
-      ),
+    fileExists: (ref: ChatRef, name: string) => exists(fileOf(ref, name)),
     readTextFile: (ref: ChatRef, name: string) =>
       readOptional(fileOf(ref, name)),
     writeTextFile: (ref: ChatRef, name: string, text: string) =>

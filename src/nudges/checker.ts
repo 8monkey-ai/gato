@@ -6,6 +6,7 @@ import type { createScheduler } from "../conversation/scheduler.ts";
 import type { Logger } from "../log.ts";
 import type { ChatView } from "../record/projection.ts";
 import type { ChatRef } from "../record/types.ts";
+import { isVisibleMessage } from "../record/visibility.ts";
 import type { ChatStore } from "../storage/chat-store.ts";
 import { healthyChats } from "./chats.ts";
 import { recordNudgeOutcome } from "./outcome.ts";
@@ -27,11 +28,7 @@ type Deps = {
 
 function agentActivity(view: ChatView) {
   const messages = view.messages
-    .filter(
-      (m) =>
-        m.author.role === "agent" &&
-        (m.delivery === "sent" || m.delivery === "observed"),
-    )
+    .filter((m) => m.author.role === "agent" && isVisibleMessage(m))
     .map((m) => m.sentAt);
   const notes = view.notes.filter((n) => n.by === "agent").map((n) => n.at);
   return [...messages, ...notes].map((at) => new Date(at));
@@ -94,21 +91,31 @@ async function nudge(d: Deps, ref: ChatRef) {
   await recordNudgeOutcome(d.controls, ref, outcome);
 }
 
-async function checkChat(
-  d: Deps,
-  reconcile: (ref: ChatRef) => Promise<boolean>,
-  ref: ChatRef,
-) {
-  if (!(await reconcile(ref))) return;
+type Check = {
+  reconcile: (ref: ChatRef) => Promise<boolean>;
+  stopped: () => boolean;
+};
+
+async function checkChat(d: Deps, check: Check, ref: ChatRef) {
+  if (!(await check.reconcile(ref))) return;
   const { owner, open, view } = await d.controls.state(ref);
   if (!open || !agentMayAnswer(owner, d.settings.ownershipPolicy)) return;
   if (d.scheduler.busy(ref)) return;
   const input = await nudgeInput(d, ref, view);
-  if (!input) return;
+  if (!input || check.stopped()) return;
   const action = selectAction(input);
   if (action.kind === "expire") await expire(d, ref, action.elapsedMs);
   if (action.kind === "nudge") await nudge(d, ref);
 }
+
+const checkAll = (d: Deps, check: Check) =>
+  Promise.all(
+    healthyChats(d.store).map((ref) =>
+      checkChat(d, check, ref).catch((error: unknown) =>
+        d.log.error("nudge.check_failed", { ...ref, error }),
+      ),
+    ),
+  );
 
 export function createNudgeChecker(d: Deps) {
   const reconciler = createReconciler({
@@ -116,20 +123,16 @@ export function createNudgeChecker(d: Deps) {
     onOwnershipChange: d.scheduler.ownershipChange,
   });
   let running: Promise<void> | undefined;
+  let stopped = false;
   let lastCheckAt: string | undefined;
   let timers: ReturnType<typeof setTimeout>[] = [];
-  const chats = () => healthyChats(d.store);
+  const check = { reconcile: reconciler.reconcile, stopped: () => stopped };
   const runCheck = async () => {
-    await Promise.all(
-      chats().map((ref) =>
-        checkChat(d, reconciler.reconcile, ref).catch((error: unknown) =>
-          d.log.error("nudge.check_failed", { ...ref, error }),
-        ),
-      ),
-    );
+    await checkAll(d, check);
     lastCheckAt = d.now().toISOString();
   };
   const checkOnce = () => {
+    if (stopped) return Promise.resolve();
     running ??= runCheck().finally(() => (running = undefined));
     return running;
   };
@@ -145,12 +148,14 @@ export function createNudgeChecker(d: Deps) {
         setInterval(tick, d.settings.nudges.checkIntervalMs),
       ];
     },
-    stop: async () => {
+    // Starts no new check or action. A running nudge turn ends when the scheduler stops.
+    stop: () => {
+      stopped = true;
       timers.forEach((timer) => clearTimeout(timer));
-      await running;
     },
+    settled: () => running ?? Promise.resolve(),
     readiness: () => {
-      const refs = chats();
+      const refs = healthyChats(d.store);
       const reconciledChats = refs.filter(reconciler.isReconciled).length;
       return {
         reconciledChats,

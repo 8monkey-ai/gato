@@ -23,9 +23,24 @@ const sendResponse = z.object({ messageId: z.union([z.number(), z.string()]) });
 
 export type RespondioApi = ReturnType<typeof createRespondioApi>;
 
+// Other error bodies can hold customer data, so only these documented messages are kept.
+const genericMessages = new Set([
+  "Validation error.",
+  "UN_AUTHORIZED",
+  "Contact not found",
+  "Too Many Requests",
+  "Unexpected error occurred",
+  "Your request cannot be processed at the moment as it is currently in queue. Please try again in a few minutes.",
+]);
+const errorBody = z.object({ message: z.string() });
+
 async function errorText(response: Response) {
-  const body = await response.text().catch(() => "");
-  return `respond.io answered ${response.status}: ${body.slice(0, 200)}`;
+  const body: unknown = await response.json().catch(() => undefined);
+  const message = errorBody.safeParse(body).data?.message;
+  const status = `respond.io answered ${response.status}`;
+  return message && genericMessages.has(message)
+    ? `${status}: ${message}`
+    : status;
 }
 
 async function expectOk(response: Response) {
@@ -112,8 +127,14 @@ export function createRespondioApi(options: ApiOptions) {
       );
       return contactSchema.parse(await response.json());
     },
-    download: async (url: string) => {
-      const signal = AbortSignal.timeout(timeoutMs);
+    tokenAccepted: async () => {
+      const response = await request("GET", "/space/channel");
+      if (response.status === 401 || response.status === 403) return false;
+      await expectOk(response);
+      return true;
+    },
+    download: async (url: string, cancel: AbortSignal) => {
+      const signal = AbortSignal.any([cancel, AbortSignal.timeout(timeoutMs)]);
       const response = await expectOk(await fetcher(url, { signal }));
       return {
         bytes: await response.bytes(),

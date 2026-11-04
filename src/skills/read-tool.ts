@@ -5,9 +5,11 @@ import type { Revision } from "./loader.ts";
 
 const input = z.object({ path: z.string() });
 
+export const readSkillName = "read_skill";
+
 export function readSkillTool(revision: Pick<Revision, "read">): AgentTool {
   return {
-    name: "read_skill",
+    name: readSkillName,
     description: [
       "Read a file of a skill from the skill catalogue.",
       'Use "<skill>/SKILL.md" for the skill instructions, for example "refunds/SKILL.md".',

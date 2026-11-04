@@ -25,3 +25,16 @@ test("writes JSON lines and redacts sensitive keys at any depth", () => {
     meta: { Phone: "[redacted]", size: 2 },
   });
 });
+
+test("an error value is logged with its name, message and stack", () => {
+  const lines: string[] = [];
+  const error = new TypeError("bad input");
+  createLogger({}, (line) => lines.push(line)).error("failed", { error });
+  const logged = JSON.parse(lines[0] ?? "{}") as { error: unknown };
+  expect(logged.error).toEqual({
+    name: "TypeError",
+    message: "bad input",
+    stack: error.stack,
+  });
+  expect(error.stack).toContain("log.test.ts");
+});

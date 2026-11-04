@@ -1,6 +1,7 @@
 import type { Logger } from "../log.ts";
 import type { ChatView } from "../record/projection.ts";
 import type { ChatRef, Owner, TurnEnd, TurnTrigger } from "../record/types.ts";
+import { isVisibleMessage } from "../record/visibility.ts";
 import { chatKey } from "../storage/chat-files.ts";
 import type { ChatStore, NewEntry } from "../storage/chat-store.ts";
 import type { Controls } from "./controls.ts";
@@ -12,15 +13,8 @@ type Run = {
   queued?: TurnTrigger;
 };
 
-function latestVisibleIsCustomer(view: ChatView) {
-  const visible = view.messages.filter(
-    (m) =>
-      m.author.role !== "agent" ||
-      m.delivery === "observed" ||
-      m.delivery === "sent",
-  );
-  return visible.at(-1)?.author.role === "customer";
-}
+const latestVisibleIsCustomer = (view: ChatView) =>
+  view.messages.filter(isVisibleMessage).at(-1)?.author.role === "customer";
 
 function recoveryEntries(view: ChatView): NewEntry[] {
   return [
@@ -55,13 +49,10 @@ type Context = {
 };
 type Scheduler = Context & { runs: Map<string, Run>; stopping: boolean };
 
-const isDamaged = ({ store }: Scheduler, ref: ChatRef) =>
-  store.damaged().some((d) => chatKey(d.ref) === chatKey(ref));
-
 async function admitted(s: Scheduler, ref: ChatRef, trigger: TurnTrigger) {
   try {
     const { owner, open, view } = await s.controls.state(ref);
-    if (isDamaged(s, ref) || !open || !agentMayAnswer(owner, s.policy))
+    if (s.store.isDamaged(ref) || !open || !agentMayAnswer(owner, s.policy))
       return false;
     if (trigger !== "review" || latestVisibleIsCustomer(view)) return true;
     await s.controls.note(ref, {
@@ -84,9 +75,11 @@ async function execute(
   admit: () => Promise<boolean>,
 ): Promise<TurnEnd> {
   if (!(await admit())) return "skipped";
-  if (run.controller.signal.aborted) return "interrupted";
+  const { signal } = run.controller;
+  if (signal.aborted)
+    return signal.reason === "interrupted" ? "superseded" : "interrupted";
   try {
-    return await s.runTurn(ref, trigger, run.controller.signal);
+    return await s.runTurn(ref, trigger, signal);
   } catch (error) {
     s.log.error("scheduler.turn_failed", { ...ref, trigger, error });
     return "failed";
@@ -138,7 +131,7 @@ function ownershipChange(
 
 async function recover(s: Scheduler) {
   for (const ref of s.store.list()) {
-    if (isDamaged(s, ref)) continue;
+    if (s.store.isDamaged(ref)) continue;
     try {
       const view = await s.store.withChat(ref, (session) =>
         session.append(recoveryEntries(session.view())),

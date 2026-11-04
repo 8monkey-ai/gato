@@ -72,7 +72,7 @@ test("lists every invalid server setting", () => {
       "  - GATO_MCP_A_TOOLS: required; accepted: a comma separated list of tool names, or *",
       "  - GATO_MCP_A_URL: required; accepted: an http or https URL",
       "  - A_TOKEN: required; accepted: any text",
-      '  - GATO_MCP_B_TOKEN_ENV: "B_TOKEN" is not valid; accepted: unset when TRANSPORT is stdio',
+      "  - GATO_MCP_B_TOKEN_ENV: must be unset when TRANSPORT is stdio",
       "  - GATO_MCP_B_COMMAND: required; accepted: any text",
       '  - GATO_MCP_C_TRANSPORT: "ws" is not valid; accepted: http, sse, stdio',
       '  - GATO_MCP_C_TOOLS: "," is not valid; accepted: a comma separated list of tool names, or *',

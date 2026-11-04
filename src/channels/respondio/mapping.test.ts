@@ -167,8 +167,8 @@ test("maps other message types to text", () => {
       address: "KL",
     }),
   ).toMatchObject({ message: { text: "[location] KL (3.153, 101.118)" } });
-  expect(textOf({ type: "story_reply", story: {} })).toMatchObject({
-    message: { text: "[unsupported story_reply message]" },
+  expect(textOf({ type: "custom_payload", payload: {} })).toMatchObject({
+    message: { text: "[unsupported custom_payload message]" },
   });
 });
 

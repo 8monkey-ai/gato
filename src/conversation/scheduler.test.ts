@@ -46,7 +46,11 @@ function fakeTurns(blockFirst: boolean) {
     waiters.splice(0).forEach((wake) => wake());
     return blockFirst && calls.length === 1
       ? new Promise<TurnEnd>((resolve) =>
-          signal.addEventListener("abort", () => resolve("interrupted")),
+          signal.addEventListener("abort", () =>
+            resolve(
+              signal.reason === "interrupted" ? "superseded" : "interrupted",
+            ),
+          ),
         )
       : Promise.resolve<TurnEnd>("completed");
   };

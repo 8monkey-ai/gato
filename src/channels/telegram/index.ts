@@ -9,9 +9,16 @@ import type {
 import { registerChannelType } from "../registry.ts";
 import { inboundEvent } from "./inbound.ts";
 import { sendOutcome } from "./outbound.ts";
+import { plainText } from "./plain-text.ts";
+import { realWait, startPolling, type Wait } from "./polling.ts";
 import { readTelegramSettings, type TelegramSettings } from "./settings.ts";
 
-function listen(bot: Bot, sink: InboundSink, operatorChatId?: string) {
+function pollingBot(
+  bot: Bot,
+  sink: InboundSink,
+  log: Logger,
+  operatorChatId?: string,
+) {
   bot.on("message", async (ctx) => {
     const message = ctx.message;
     if (String(message.chat.id) === operatorChatId) return;
@@ -19,25 +26,28 @@ function listen(bot: Bot, sink: InboundSink, operatorChatId?: string) {
     const event = inboundEvent(ctx.update, message);
     if (event) await sink(event);
   });
-}
-
-async function startPolling(bot: Bot, log: Logger) {
   // Rethrow so polling stops before Telegram confirms an update that was not saved.
   bot.catch((error) => {
     log.error("telegram.update_failed", { error: error.error });
     throw error;
   });
-  await bot.init();
-  bot.start().catch((error: unknown) => {
-    log.error("telegram.polling_stopped", { error });
-  });
+  return bot;
 }
 
-async function fetchFile(bot: Bot, token: string, fileId: string) {
-  const { file_path } = await bot.api.getFile(fileId);
+async function fetchFile(
+  bot: Bot,
+  token: string,
+  fileId: string,
+  cancel: AbortSignal,
+) {
+  const signal = AbortSignal.any([cancel, AbortSignal.timeout(60_000)]);
+  // grammy types the signal with its abort-controller shim; the runtime accepts a standard one.
+  const shimSignal = signal as Parameters<Bot["api"]["getFile"]>[1];
+  const { file_path } = await bot.api.getFile(fileId, shimSignal);
   if (!file_path) throw new Error("Telegram returned no file path");
   const response = await fetch(
     `https://api.telegram.org/file/bot${token}/${file_path}`,
+    { signal },
   ).catch(() => {
     throw new Error("Telegram file download failed");
   });
@@ -62,32 +72,45 @@ export function createTelegramConnection(
   id: string,
   settings: TelegramSettings,
   log: Logger,
-  newBot = (token: string) => new Bot(token),
+  {
+    newBot = (token: string) => new Bot(token),
+    wait = realWait,
+  }: { newBot?: (token: string) => Bot; wait?: Wait } = {},
 ): ChannelConnection {
   let instance: Bot | undefined;
   // Built on first use, so a missing token is reported by configuration checks first.
   const bot = () => (instance ??= newBot(settings.botToken));
   const { operatorChatId } = settings;
+  let polling: Awaited<ReturnType<typeof startPolling>> | undefined;
   const send = (chatId: string, part: OutboundPart) =>
     sendOutcome(
       part.kind === "text"
-        ? bot().api.sendMessage(chatId, part.text)
+        ? bot().api.sendMessage(chatId, plainText(part.text))
         : bot().api.sendVideo(chatId, part.url),
     );
   return {
     id,
     maxTextLength: 4096,
     supportsVideo: true,
-    start: (sink) => {
-      listen(bot(), sink, operatorChatId);
-      return startPolling(bot(), log);
+    start: async (sink) => {
+      polling = await startPolling({
+        newBot: () =>
+          pollingBot(newBot(settings.botToken), sink, log, operatorChatId),
+        restartDelayMs: settings.pollRestartDelayMs,
+        log,
+        wait,
+      });
     },
-    stop: () => bot().stop(),
+    stop: async () => {
+      await polling?.stop();
+    },
+    healthy: () => polling?.healthy() ?? true,
     send,
     typing: async (chatId) => {
       await bot().api.sendChatAction(chatId, "typing");
     },
-    fetchAttachment: (fileId) => fetchFile(bot(), settings.botToken, fileId),
+    fetchAttachment: (fileId, signal) =>
+      fetchFile(bot(), settings.botToken, fileId, signal),
     contactContext: (chatId) => contactContext(bot(), chatId).catch(() => ({})),
     ...(operatorChatId && {
       notifyOperators: async (chatId: string, text: string) => {

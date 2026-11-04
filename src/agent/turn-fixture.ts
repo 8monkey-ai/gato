@@ -1,4 +1,4 @@
-import { afterEach, beforeEach } from "bun:test";
+import { afterEach, beforeEach, spyOn } from "bun:test";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -6,13 +6,14 @@ import path from "node:path";
 import { simulateReadableStream } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 
+import { createAttachmentRetrieval } from "../attachments/retrieve.ts";
 import type { ChannelConnection, OutboundPart } from "../channels/channel.ts";
 import { createEnvReader } from "../config/env.ts";
 import { readSettings } from "../config/settings.ts";
 import { createControls } from "../conversation/controls.ts";
 import { createDelivery } from "../delivery/deliver.ts";
 import { createLogger } from "../log.ts";
-import type { Entry } from "../record/types.ts";
+import type { Entry, EntryBody } from "../record/types.ts";
 import { type ChatStore, openChatStore } from "../storage/chat-store.ts";
 import { createTurnRunner } from "./turn.ts";
 
@@ -22,7 +23,8 @@ export type Chunk =
 
 export const ref = { connectionId: "tg", chatId: "42" };
 const now = () => new Date("2026-11-04T10:15:00.000Z");
-const log = createLogger({}, () => {});
+let logLines: string[] = [];
+const log = createLogger({}, (line) => logLines.push(line));
 const usage = {
   inputTokens: {
     total: 1,
@@ -41,6 +43,7 @@ export const dirs = () => ({ dataDir, skillsDir });
 // Registers the hooks that give each test a fresh data folder and skills checkout.
 export function useTurnFixture() {
   beforeEach(async () => {
+    logLines = [];
     dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "gato-turn-data-"));
     skillsDir = await fs.mkdtemp(path.join(os.tmpdir(), "gato-turn-skills-"));
     await Bun.write(path.join(skillsDir, "AGENTS.md"), "Be kind.\n");
@@ -106,7 +109,7 @@ const settingsFor = (env: Record<string, string>) =>
     }),
   );
 
-function fakeConnection() {
+function fakeConnection(extra: Partial<ChannelConnection>) {
   const sent: OutboundPart[] = [];
   const onSend: (() => void)[] = [];
   const connection: ChannelConnection = {
@@ -121,6 +124,7 @@ function fakeConnection() {
       return Promise.resolve({ status: "sent", sentAt: now() });
     },
     fetchAttachment: () => Promise.reject(new Error("no file")),
+    ...extra,
   };
   const texts = () => sent.map((p) => (p.kind === "text" ? p.text : p.url));
   return { connection, texts, onSend };
@@ -131,9 +135,10 @@ export function setup(
     ConstructorParameters<typeof MockLanguageModelV4>[0]
   >["doStream"],
   env: Record<string, string> = {},
+  connectionExtra: Partial<ChannelConnection> = {},
 ) {
   const settings = settingsFor(env);
-  const { connection, texts, onSend } = fakeConnection();
+  const { connection, texts, onSend } = fakeConnection(connectionExtra);
   const model = new MockLanguageModelV4({ doStream });
   const controls = createControls({
     store,
@@ -149,6 +154,7 @@ export function setup(
     settings,
     skillsDir,
     summaryPrompt: "Summarise.",
+    retrieveAttachments: createAttachmentRetrieval(),
     mcpTools: [],
     delivery: createDelivery({ store, settings: settings.delivery, log, now }),
     log,
@@ -176,3 +182,16 @@ export const handoffs = async () =>
   (await entries("handoff")).map((e) => [e.path, e.reason]);
 export const labels = async () =>
   (await entries("labels")).map((e) => e.labels);
+
+export const logged = () =>
+  logLines.map((line) => JSON.parse(line) as Record<string, unknown>);
+
+// Makes every store append that contains a matching entry fail, for all users of the store.
+export function failAppends(match: (body: EntryBody) => boolean) {
+  const append = store.append.bind(store);
+  spyOn(store, "append").mockImplementation((r, bodies) =>
+    bodies.some(match)
+      ? Promise.reject(new Error("disk full"))
+      : append(r, bodies),
+  );
+}

@@ -261,3 +261,21 @@ test("a failing chat does not stop the other chats", async () => {
   expect(runs.map((r) => r.chatId)).toEqual(["7"]);
   expect(logs.filter((l) => l.event === "nudge.check_failed").length).toBe(1);
 });
+
+test("a stopped checker starts no check, and a running check finishes before settled resolves", async () => {
+  await seed();
+  let releaseState: () => void = () => {};
+  const held = new Promise<void>((resolve) => (releaseState = resolve));
+  const { store, checker, runs } = await setup(channel(), {
+    wrap: (c) => ({ ...c, state: (r) => held.then(() => c.state(r)) }),
+  });
+  at(35);
+  const running = checker.checkOnce();
+  checker.stop();
+  releaseState();
+  await checker.settled();
+  await running;
+  await checker.checkOnce();
+  expect(runs).toEqual([]);
+  expect(await notes(store)).toEqual([]);
+});

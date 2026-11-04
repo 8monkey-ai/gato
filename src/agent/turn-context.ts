@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import type { ModelMessage } from "ai";
 
 import { prepareAttachments } from "../attachments/prepare.ts";
-import { retrieveMissing } from "../attachments/retrieve.ts";
+import type { RetrieveAttachments } from "../attachments/retrieve.ts";
 import type { ChannelConnection } from "../channels/channel.ts";
 import type { Settings } from "../config/settings.ts";
 import { type HistoryItem, selectHistory } from "../context/history.ts";
@@ -23,6 +23,7 @@ export type ContextDeps = {
   provider: ModelProvider;
   settings: Settings;
   summaryPrompt: string;
+  retrieveAttachments: RetrieveAttachments;
   now: () => Date;
 };
 
@@ -34,15 +35,6 @@ type Input = {
   trigger?: Extract<Entry, { type: "trigger" }>;
   log: Logger;
 };
-
-function today(now: Date, timeZone: string) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
-}
 
 async function summaryOf(deps: ContextDeps, input: Input, view: ChatView) {
   const text = await ensureSummary({
@@ -110,20 +102,32 @@ async function messagesFor(deps: ContextDeps, input: Input) {
   });
 }
 
+// Contact facts help but are not essential, so a failure costs only the facts.
+async function contactContext({ connection, ref, log }: Input) {
+  try {
+    return (await connection.contactContext?.(ref.chatId)) ?? {};
+  } catch {
+    log.warn("turn.contact_context_failed");
+    return {};
+  }
+}
+
 export async function buildContext(
   deps: ContextDeps,
   input: Input,
 ): Promise<{ instructions: string; messages: ModelMessage[] }> {
-  const { ref, connection } = input;
-  await retrieveMissing({ store: deps.store, ref, connection, log: input.log });
-  const summary = await summaryOf(deps, input, await deps.store.load(ref));
+  const { ref, connection, log } = input;
+  const { store } = deps;
+  const signal = input.budget.signal;
+  await deps.retrieveAttachments({ store, ref, connection, log, signal });
+  const summary = await summaryOf(deps, input, await store.load(ref));
   const messages = await messagesFor(deps, input);
-  const contact = (await connection.contactContext?.(ref.chatId)) ?? {};
   const instructions = buildInstructions({
     revision: input.revision,
     country: deps.settings.country,
-    today: today(deps.now(), deps.settings.timeZone),
-    contact,
+    now: deps.now(),
+    timeZone: deps.settings.timeZone,
+    contact: await contactContext(input),
     summary,
   });
   return { instructions, messages };

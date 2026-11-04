@@ -1,6 +1,6 @@
 export class BudgetExceededError extends Error {
-  constructor(maxModelCalls: number) {
-    super(`The turn used all ${maxModelCalls} model calls`);
+  constructor() {
+    super("The turn used all its model calls");
     this.name = "BudgetExceededError";
   }
 }
@@ -23,8 +23,7 @@ export function createBudget(
     take() {
       if (now() >= deadline) expire();
       signal.throwIfAborted();
-      if (taken >= limits.maxModelCalls)
-        throw new BudgetExceededError(limits.maxModelCalls);
+      if (taken >= limits.maxModelCalls) throw new BudgetExceededError();
       taken += 1;
     },
     remainingCalls: () => limits.maxModelCalls - taken,

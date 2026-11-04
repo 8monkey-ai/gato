@@ -6,8 +6,10 @@ import type { TurnTrigger } from "../record/types.ts";
 import {
   dirs,
   entries,
+  failAppends,
   handoffs,
   labels,
+  logged,
   ref,
   setup,
   signal,
@@ -101,5 +103,58 @@ test("the time limit ends the turn as timed out with an error handoff", async ()
   expect(await turnEnd()).toEqual([["timed-out", "time limit reached"]]);
   expect(await handoffs()).toEqual([
     ["error", "The agent could not answer (timed-out): time limit reached"],
+  ]);
+});
+
+test("a failed record during delivery still ends the turn with an error handoff", async () => {
+  const { runTurn, texts } = setup(textStep("Hello."));
+  failAppends(
+    (body) => body.type === "message" && body.message.author.role === "agent",
+  );
+  expect(await runTurn(ref, "customer", signal())).toBe("failed");
+  expect(texts()).toEqual([]);
+  expect(await turnEnd()).toEqual([["failed", "disk full"]]);
+  expect(await handoffs()).toEqual([
+    ["error", "The agent could not answer (failed): disk full"],
+  ]);
+});
+
+test("a turn whose end cannot be recorded resolves as failed", async () => {
+  const { runTurn } = setup(textStep("Hello."));
+  failAppends((body) => body.type === "turn-end");
+  expect(await runTurn(ref, "customer", signal())).toBe("failed");
+  expect(logged().map((line) => line.event)).toContain("turn.record_failed");
+});
+
+test("a failing contact context is logged without details and the turn continues", async () => {
+  const { runTurn, texts } = setup(
+    textStep("Hello."),
+    {},
+    {
+      contactContext: () => Promise.reject(new Error("secret +63 555")),
+    },
+  );
+  expect(await runTurn(ref, "customer", signal())).toBe("completed");
+  expect(texts()).toEqual(["Hello"]);
+  const warning = logged().find(
+    (l) => l.event === "turn.contact_context_failed",
+  );
+  expect(warning).toMatchObject({ level: "warn" });
+  expect(JSON.stringify(warning)).not.toContain("secret");
+});
+
+test("an error hands off an unassigned chat that the shared policy lets the agent answer", async () => {
+  const { runTurn } = setup(
+    failing,
+    { GATO_OWNERSHIP_POLICY: "shared" },
+    {
+      assignment: {
+        fetchState: () => Promise.resolve({ owner: "none", open: true }),
+      },
+    },
+  );
+  expect(await runTurn(ref, "customer", signal())).toBe("failed");
+  expect(await handoffs()).toEqual([
+    ["error", "The agent could not answer (failed): Provider down"],
   ]);
 });

@@ -103,10 +103,11 @@ function start(
     settings?: Settings["delivery"];
     sleep?: ReturnType<typeof fakeSleep>["sleep"];
     signal?: AbortSignal;
+    store?: Pick<ChatStore, "append">;
   } = {},
 ) {
   return createDelivery({
-    store,
+    store: options.store ?? store,
     settings: options.settings ?? delivery(),
     log,
     sleep: options.sleep ?? fakeSleep().sleep,
@@ -129,8 +130,6 @@ test("sends paragraphs in order after a fixed pause each and records them", asyn
   expect(await reply.end()).toEqual({
     sentParts: 2,
     failed: false,
-    interrupted: false,
-    uncertain: false,
   });
   expect(pacing.requested).toEqual([750, 750]);
   expect(fake.typing).toEqual(["42", "42"]);
@@ -199,8 +198,6 @@ test("an abort during a pacing wait supersedes the remaining parts", async () =>
   expect(await reply.end()).toEqual({
     sentParts: 1,
     failed: false,
-    interrupted: true,
-    uncertain: false,
   });
   expect(fake.sent).toEqual([{ kind: "text", text: "A" }]);
   expect(await records()).toEqual([
@@ -233,8 +230,6 @@ test("an uncertain outcome is logged and never resent", async () => {
   expect(await reply.end()).toEqual({
     sentParts: 0,
     failed: false,
-    interrupted: false,
-    uncertain: true,
   });
   expect(fake.sent).toEqual([{ kind: "text", text: "A" }]);
   expect(await records()).toEqual([
@@ -248,6 +243,21 @@ test("an uncertain outcome is logged and never resent", async () => {
   expect(
     logLines.map((line) => (JSON.parse(line) as { event: string }).event),
   ).toEqual(["delivery.uncertain"]);
+});
+
+test("a failed record ends delivery with the error, and a second end does not throw", async () => {
+  const fake = fakeConnection();
+  const failing = { append: () => Promise.reject(new Error("disk full")) };
+  const reply = start(fake.connection, { store: failing });
+  reply.push("A\n\nB");
+  const result = await reply.end();
+  expect(result).toEqual({
+    sentParts: 0,
+    failed: false,
+    error: new Error("disk full"),
+  });
+  expect(await reply.end()).toEqual(result);
+  expect(fake.sent).toEqual([]);
 });
 
 test("a retryable failure waits and retries the same part", async () => {

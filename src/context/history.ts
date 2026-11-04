@@ -1,5 +1,6 @@
 import type { ChatView, RecordedMessage } from "../record/projection.ts";
-import type { Delivery, Entry } from "../record/types.ts";
+import type { Entry } from "../record/types.ts";
+import { isVisibleMessage } from "../record/visibility.ts";
 import { recentMonthStart } from "../summary/policy.ts";
 
 type EntryOf<T extends Entry["type"]> = Extract<Entry, { type: T }>;
@@ -18,14 +19,6 @@ export type HistoryOptions = {
 
 type Placed = { time: string; seq: number; item: HistoryItem };
 
-const visibleAgentDelivery: readonly Delivery[] = ["sent", "observed"];
-
-function isVisible(message: RecordedMessage): boolean {
-  return message.author.role === "agent"
-    ? visibleAgentDelivery.includes(message.delivery)
-    : message.delivery === "observed";
-}
-
 function toolPairs(view: ChatView): Placed[] {
   const results = new Map<string, EntryOf<"tool-result">>();
   for (const entry of view.toolActivity)
@@ -41,11 +34,13 @@ function toolPairs(view: ChatView): Placed[] {
 }
 
 function placedItems(view: ChatView, includeToolActivity: boolean): Placed[] {
-  const messages = view.messages.filter(isVisible).map((message): Placed => ({
-    time: message.sentAt,
-    seq: message.seq,
-    item: { kind: "message", message },
-  }));
+  const messages = view.messages
+    .filter(isVisibleMessage)
+    .map((message): Placed => ({
+      time: message.sentAt,
+      seq: message.seq,
+      item: { kind: "message", message },
+    }));
   if (!includeToolActivity) return messages;
   const triggers = view.triggers.map((trigger): Placed => ({
     time: trigger.at,

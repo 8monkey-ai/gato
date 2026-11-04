@@ -87,7 +87,6 @@ test("migrated customer messages without an event id are not pending", () => {
   const view = project(
     entries(message("m1", customer, "2026-11-04T10:00:00Z")),
   );
-  expect(view.answeredThroughSeq).toBe(0);
   expect(view.hasPendingInput).toBe(false);
 });
 
@@ -107,13 +106,15 @@ test("input counts as answered only through turns that were not superseded or in
       { type: "turn-end", turnId: "t1", outcome: "completed" },
       { ...message("m2", customer, "2026-11-04T10:01:00Z"), eventId: "e2" },
       turn("t2", 4),
-      { type: "turn-end", turnId: "t2", outcome: "interrupted" },
+      { type: "turn-end", turnId: "t2", outcome: "superseded" },
+      turn("t3", 6),
+      { type: "turn-end", turnId: "t3", outcome: "interrupted" },
     ),
   );
-  expect(view.answeredThroughSeq).toBe(1);
   expect(view.hasPendingInput).toBe(true);
   expect(view.turns.map((t) => t.end?.outcome)).toEqual([
     "completed",
+    "superseded",
     "interrupted",
   ]);
 
@@ -124,11 +125,10 @@ test("input counts as answered only through turns that were not superseded or in
       { type: "turn-end", turnId: "t1", outcome: "skipped" },
     ),
   );
-  expect(answered.answeredThroughSeq).toBe(1);
   expect(answered.hasPendingInput).toBe(false);
 });
 
-test("collects labels, records and attachment updates", () => {
+test("collects records and attachment updates", () => {
   const withAttachment: EntryBody = {
     type: "message",
     message: {
@@ -149,17 +149,54 @@ test("collects labels, records and attachment updates", () => {
         file: "attachments/m1-a1.jpg",
       },
       { type: "labels", labels: ["handoff"] },
-      { type: "labels", labels: ["handoff", "error"] },
       { type: "note", by: "system", kind: "info", text: "n" },
       { type: "handoff", path: "error", reason: "r" },
       { type: "trigger", turnId: "t", text: "Nudge" },
     ),
   );
   expect(view.messages[0]?.attachments[0]?.file).toBe("attachments/m1-a1.jpg");
-  expect(view.localLabels).toEqual(["handoff", "error"]);
   expect([
     view.notes.length,
     view.handoffs.length,
     view.triggers.length,
   ]).toEqual([1, 1, 1]);
+});
+
+test("a sent part keeps its delivery, platform id and sent time after later updates", () => {
+  const view = project(
+    entries(
+      {
+        type: "message",
+        message: {
+          id: "a1",
+          author: { role: "agent" },
+          sentAt: "2026-11-04T10:00:00Z",
+          text: "Hi",
+          attachments: [],
+          delivery: "pending",
+        },
+      },
+      {
+        type: "message-update",
+        messageId: "a1",
+        delivery: "sent",
+        platformId: "p1",
+        sentAt: "2026-11-04T10:00:05Z",
+      },
+      {
+        type: "message-update",
+        messageId: "a1",
+        delivery: "uncertain",
+        error: "timeout",
+      },
+      { type: "message-update", messageId: "a1", delivery: "failed" },
+      { type: "message-update", messageId: "a1", delivery: "pending" },
+    ),
+  );
+  expect(view.messages[0]).toMatchObject({
+    delivery: "sent",
+    platformId: "p1",
+    sentAt: "2026-11-04T10:00:05Z",
+  });
+  expect(view.messages[0]?.error).toBeUndefined();
 });

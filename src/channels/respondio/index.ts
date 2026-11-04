@@ -1,4 +1,4 @@
-import type { EnvReader } from "../../config/env.ts";
+import { ConfigError, type EnvReader } from "../../config/env.ts";
 import type { Logger } from "../../log.ts";
 import { connectMcp } from "../../tools/mcp-client.ts";
 import type { ChannelConnection, InboundSink } from "../channel.ts";
@@ -31,6 +31,16 @@ async function connectContactTools(id: string, mcp: McpSettings, log: Logger) {
   return { client, toolsFor: await createContactTools(client, mcp) };
 }
 
+// Only a rejected token fails startup; respond.io being unreachable now does not.
+async function checkToken(api: RespondioApi, id: string, log: Logger) {
+  const accepted = await api.tokenAccepted().catch((error: unknown) => {
+    log.warn("respondio.token_check_failed", { connectionId: id, error });
+    return true;
+  });
+  if (!accepted)
+    throw new ConfigError(`respond.io API token rejected for connection ${id}`);
+}
+
 function nativePorts(api: RespondioApi, agentUserId: string) {
   return {
     assignment: {
@@ -60,6 +70,7 @@ async function create(
   const settings = readRespondioSettings(env);
   env.assertValid();
   const api = createRespondioApi(settings);
+  await checkToken(api, id, log);
   const mcp =
     settings.mcp && (await connectContactTools(id, settings.mcp, log));
   let sink: InboundSink | undefined;

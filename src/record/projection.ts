@@ -14,9 +14,8 @@ export type Turn = {
   turnId: string;
   trigger: TurnTrigger;
   inputThroughSeq: number;
-  instructionsRevision: string;
   startedAt: string;
-  end?: { outcome: TurnEnd; reason?: string; at: string; seq: number };
+  end?: { outcome: TurnEnd; reason?: string; seq: number };
 };
 
 export type ChatView = {
@@ -26,22 +25,17 @@ export type ChatView = {
   messageIdByPlatformId: Map<string, string>;
   ownership?: { owner: Owner; assigneeId?: string; eventAt: string };
   open?: { open: boolean; eventAt: string };
-  localLabels: string[];
   turns: Turn[];
   notes: EntryOf<"note">[];
   handoffs: EntryOf<"handoff">[];
   toolActivity: EntryOf<"tool-call" | "tool-result">[];
   triggers: EntryOf<"trigger">[];
   merges: EntryOf<"merge">[];
-  answeredThroughSeq: number;
   hasPendingInput: boolean;
   latestCustomerAt?: string;
 };
 
-type State = Omit<
-  ChatView,
-  "messages" | "answeredThroughSeq" | "hasPendingInput"
-> & {
+type State = Omit<ChatView, "messages" | "hasPendingInput"> & {
   messages: Map<string, RecordedMessage>;
 };
 
@@ -50,7 +44,10 @@ const isNewer = (eventAt: string, current?: { eventAt: string }) =>
 
 function applyMessageUpdate(state: State, e: EntryOf<"message-update">) {
   const message = state.messages.get(e.messageId);
-  if (!message) return;
+  // A confirmed send is final; a later uncertain, failed or pending outcome comes from a slower path.
+  const downgrade =
+    message?.delivery === "sent" && e.delivery && e.delivery !== "sent";
+  if (!message || downgrade) return;
   if (e.delivery) message.delivery = e.delivery;
   if (e.sentAt) message.sentAt = e.sentAt;
   if (e.error) message.error = e.error;
@@ -95,24 +92,19 @@ const handlers: {
   status: (state, { open, eventAt }) => {
     if (isNewer(eventAt, state.open)) state.open = { open, eventAt };
   },
-  labels: (state, { labels }) => {
-    state.localLabels = [...new Set([...state.localLabels, ...labels])];
-  },
-  "turn-start": (
-    state,
-    { turnId, trigger, inputThroughSeq, instructionsRevision, at },
-  ) => {
+  // Labels live in labels.txt or on the channel; the entry is part of the record only.
+  labels: () => {},
+  "turn-start": (state, { turnId, trigger, inputThroughSeq, at }) => {
     state.turns.push({
       turnId,
       trigger,
       inputThroughSeq,
-      instructionsRevision,
       startedAt: at,
     });
   },
-  "turn-end": (state, { turnId, outcome, reason, at, seq }) => {
+  "turn-end": (state, { turnId, outcome, reason, seq }) => {
     const turn = state.turns.find((t) => t.turnId === turnId);
-    if (turn) turn.end = { outcome, reason, at, seq };
+    if (turn) turn.end = { outcome, reason, seq };
   },
   note: (state, entry) => state.notes.push(entry),
   handoff: (state, entry) => state.handoffs.push(entry),
@@ -145,7 +137,6 @@ function emptyState(): State {
     messages: new Map(),
     seenEventIds: new Set(),
     messageIdByPlatformId: new Map(),
-    localLabels: [],
     turns: [],
     notes: [],
     handoffs: [],
@@ -171,7 +162,6 @@ export function project(entries: Entry[]): ChatView {
   return {
     ...state,
     messages,
-    answeredThroughSeq: throughSeq,
     hasPendingInput: customer.some(
       (m) => m.eventId !== undefined && m.seq > throughSeq,
     ),

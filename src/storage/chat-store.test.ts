@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test } from "bun:test";
+import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -73,9 +73,11 @@ test("isolates a chat with a damaged line and loads the other chats", async () =
   expect(store.damaged()).toEqual([
     {
       ref: { connectionId: "tg", chatId: "bad" },
-      error: "events.jsonl line 2 is not a valid entry",
+      errors: ["events.jsonl line 2 is not a valid entry"],
     },
   ]);
+  expect(store.isDamaged({ connectionId: "tg", chatId: "bad" })).toBe(true);
+  expect(store.isDamaged(ref)).toBe(false);
   expect((await store.load(ref)).messages.map((m) => m.id)).toEqual(["m2"]);
   const bad = { connectionId: "tg", chatId: "bad" };
   expect((await store.load(bad)).messages.map((m) => m.id)).toEqual(["m1"]);
@@ -178,7 +180,7 @@ test("reports a folder whose name is not a chat id and does not load it", async 
   expect(store.damaged()).toEqual([
     {
       ref: { connectionId: "tg", chatId: "a.b" },
-      error: "folder name is not a valid chat id, chat not loaded",
+      errors: ["folder name is not a valid chat id, chat not loaded"],
     },
   ]);
 });
@@ -187,4 +189,33 @@ test("refuses a data folder that does not exist", async () => {
   await expect(
     openChatStore(path.join(dataDir, "missing"), { timeZone: "UTC", log }),
   ).rejects.toThrow("Data folder does not exist");
+});
+
+test("a torn write marks the chat damaged and the next entry starts on a new line", async () => {
+  const store = await open();
+  await store.append(ref, [customerMessage("m1")]);
+  const realOpen = fs.open;
+  const tornOpen = spyOn(fs, "open").mockImplementationOnce(
+    async (file, flags) => {
+      const handle = await realOpen(file, flags);
+      return Object.assign(Object.create(handle) as typeof handle, {
+        write: async (text: string) => {
+          await handle.write(text.slice(0, 10));
+          throw new Error("disk full");
+        },
+        close: () => handle.close(),
+      });
+    },
+  );
+  await expect(store.append(ref, [customerMessage("m2")])).rejects.toThrow(
+    "disk full",
+  );
+  tornOpen.mockRestore();
+  expect(store.isDamaged(ref)).toBe(true);
+  expect((await store.append(ref, [customerMessage("m3")])).lastSeq).toBe(2);
+  const reopened = await open();
+  expect((await reopened.load(ref)).messages.map((m) => m.id)).toEqual([
+    "m1",
+    "m3",
+  ]);
 });

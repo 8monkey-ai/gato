@@ -26,9 +26,14 @@ docker run -d --name gato \
   gato
 ```
 
-The image sets `GATO_DATA_DIR=/data` and declares `/data` as a volume. The process runs as user `bun`, so the
-mounted data folder must be writable by that user. Only one process can use a data folder at a time: the
-harness keeps a lock file `.gato.lock` in it. Run one container for each country.
+The image sets `GATO_DATA_DIR=/data` but has no `/data` folder and no volume. Mount a data folder at `/data`.
+Without a mount the harness stops with "Data folder does not exist", so it never writes chats to a folder
+that is lost with the container.
+
+The process runs as user `bun` (uid 1000), so that user must be able to write the mounted folder. Give the
+folder to uid 1000 (`chown -R 1000:1000 /srv/gato/data`), or run the container as the owner of the folder
+with `--user "$(id -u):$(id -g)"`. Only one process can use a data folder at a time: the harness keeps a lock
+file `.gato.lock` in it. Run one container for each country.
 
 At startup the harness checks the configuration, the data folder, the instructions, the summary prompt, the
 model ids, and the MCP servers. If a check fails, it writes one error line to standard output and stops with
@@ -63,15 +68,29 @@ server id in upper case, with `-` changed to `_` (connection `my-shop` uses `GAT
 | `GATO_MODEL`                | required                            | Base model id, for example `openai/gpt-4o`.                                                                      |
 | `GATO_SUMMARY_MODEL`        | the base model                      | Model for contact summaries.                                                                                     |
 | `GATO_SUMMARY_PROMPT_FILE`  | `prompts/summary.md` of the harness | Summary prompt file. A file set here must exist.                                                                 |
-| `GATO_IMAGE_MODEL`          | unset                               | Model that describes images. Unset: the image goes to the base model.                                            |
-| `GATO_DOCUMENT_MODEL`       | unset                               | Model that reads documents. Unset: the file goes to the base model.                                              |
-| `GATO_AUDIO_MODEL`          | unset                               | Model that transcribes audio. Unset: the file goes to the base model.                                            |
+| `GATO_IMAGE_MODEL`          | unset                               | Model that describes images. Unset: see "Attachments".                                                           |
+| `GATO_DOCUMENT_MODEL`       | unset                               | Model that reads documents. Unset: see "Attachments".                                                            |
+| `GATO_AUDIO_MODEL`          | unset                               | Model that transcribes audio. Unset: see "Attachments".                                                          |
 | `GATO_TURN_TIMEOUT`         | `2m`                                | Maximum time of one turn, summary and preparation included.                                                      |
 | `GATO_TURN_MAX_MODEL_CALLS` | `12`                                | Maximum model calls of one turn, summary and preparation included.                                               |
 | `GATO_OWNERSHIP_POLICY`     | `assigned`                          | `assigned`: answer only chats assigned to the agent. `shared`: also unassigned chats. `unrestricted`: all chats. |
 
 At startup the harness checks every configured model id against the OpenRouter model list. An unknown id stops
 startup. If OpenRouter cannot be reached, startup continues and `/health` shows `"models": "unverified"`.
+
+### Attachments
+
+The harness keeps the original file of each image, document and audio attachment in the chat folder. For each
+of the three categories, a preparation model (`GATO_IMAGE_MODEL`, `GATO_DOCUMENT_MODEL`, `GATO_AUDIO_MODEL`)
+can turn the file into text. The text then replaces the file in the model input, and the harness saves it for
+later turns.
+
+Without a preparation model, a customer file goes directly to the base model. An operator or workflow file
+cannot go directly: it is on the agent side of the conversation, and the OpenRouter provider drops files on
+that side. A turn whose history holds an operator or workflow file of a category without a preparation model
+fails with an error handoff, also when the file is from an earlier part of the chat. At startup the harness
+logs one warning for each category without a preparation model. Set the preparation models for the categories
+that your operators and workflows send.
 
 ### History
 
@@ -125,10 +144,11 @@ startup. If OpenRouter cannot be reached, startup continues and `/health` shows 
 
 Telegram (`GATO_CONNECTION_<ID>_...`):
 
-| Variable           | Default  | Description                                        |
-| ------------------ | -------- | -------------------------------------------------- |
-| `BOT_TOKEN`        | required | Bot token from BotFather.                          |
-| `OPERATOR_CHAT_ID` | unset    | Telegram chat that receives handoff notifications. |
+| Variable             | Default  | Description                                             |
+| -------------------- | -------- | ------------------------------------------------------- |
+| `BOT_TOKEN`          | required | Bot token from BotFather.                               |
+| `OPERATOR_CHAT_ID`   | unset    | Telegram chat that receives handoff notifications.      |
+| `POLL_RESTART_DELAY` | `5s`     | Wait before polling starts again after a failed update. |
 
 respond.io (`GATO_CONNECTION_<ID>_...`):
 
@@ -231,16 +251,17 @@ handoff. Each turn reads the checkout again, so updates apply to the next turn.
 Each chat has the folder `<GATO_DATA_DIR>/<connection id>/<chat id>/`. A chat id contains only letters, digits,
 `_` and `-` (1 to 128 characters). The adapters use the numeric respond.io contact id and the Telegram chat id.
 
-| File           | Content                                                                                        |
-| -------------- | ---------------------------------------------------------------------------------------------- |
-| `events.jsonl` | The record: one JSON entry per line, append only. This is the source of truth.                 |
-| `chat.txt`     | Readable transcript, written again after each change.                                          |
-| `summary.txt`  | Latest contact summary: `Generated: <ISO time>`, a blank line, then the text.                  |
-| `attachments/` | Original files of attachments.                                                                 |
-| `paused`       | Operator file. If it exists, a human owns the chat. The content is the reason.                 |
-| `closed`       | Operator file. If it exists, the chat is closed.                                               |
-| `labels.txt`   | Labels, one per line. The harness adds lines; operators can edit it.                           |
-| `merged-into`  | Written by a merge. Contains the id of the chat that received the history. The chat is closed. |
+| File            | Content                                                                                         |
+| --------------- | ----------------------------------------------------------------------------------------------- |
+| `events.jsonl`  | The record: one JSON entry per line, append only. This is the source of truth.                  |
+| `chat.txt`      | Readable transcript, written again after each change.                                           |
+| `summary.txt`   | Latest contact summary: `Generated: <ISO time>`, a blank line, then the text.                   |
+| `attachments/`  | Original files of attachments.                                                                  |
+| `instructions/` | `<revision>.md`: repository instructions and skill catalogue of each revision that a turn used. |
+| `paused`        | Operator file. If it exists, a human owns the chat. The content is the reason.                  |
+| `closed`        | Operator file. If it exists, the chat is closed.                                                |
+| `labels.txt`    | Labels, one per line. The harness adds lines; operators can edit it.                            |
+| `merged-into`   | Written by a merge. Contains the id of the chat that received the history. The chat is closed.  |
 
 `paused`, `closed` and `labels.txt` apply only to connections without native assignment and labels (Telegram).
 respond.io keeps these in respond.io.
@@ -284,7 +305,8 @@ curl -X POST -H "Authorization: Bearer $GATO_OPS_TOKEN" \
   -d '{"connectionId":"rio","fromChatId":"111","intoChatId":"222"}' http://localhost:3000/ops/merge
 ```
 
-The `/health` body contains `ready`, `storage`, `damagedChats`, `connections` (with `started`), `mcpServers`,
+The `/health` body contains `ready`, `storage`, `damagedChats`, `connections` (with `started` and
+`healthy`), `mcpServers`,
 `models` (`verified`, `unverified` or `not checked`) and `nudges` (reconciled and unreconciled chats, time of
 the last check). A respond.io chat is reconciled after the harness has read its assignment from respond.io
 once since startup. Nudges start only for reconciled chats.

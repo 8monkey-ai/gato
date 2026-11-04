@@ -13,6 +13,8 @@ const input = z.object({
     ),
 });
 
+export const handoffToolName = "handoff_to_colleague";
+
 export function handoffTool({
   ref,
   turnId,
@@ -25,7 +27,7 @@ export function handoffTool({
   onHandoff: () => void;
 }): AgentTool {
   return {
-    name: "handoff_to_colleague",
+    name: handoffToolName,
     description:
       "Ask a human colleague to take over this conversation when your skills require human help. This sends nothing to the customer.",
     inputSchema: z.toJSONSchema(input),

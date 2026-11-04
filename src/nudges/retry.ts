@@ -7,13 +7,14 @@ import type { createScheduler } from "../conversation/scheduler.ts";
 import type { Logger } from "../log.ts";
 import type { ChatView } from "../record/projection.ts";
 import type { ChatRef, TurnEnd } from "../record/types.ts";
+import { isVisibleMessage } from "../record/visibility.ts";
 import type { ChatStore } from "../storage/chat-store.ts";
 import { healthyChats } from "./chats.ts";
 import { recordNudgeOutcome } from "./outcome.ts";
 import { retryEligible } from "./retry-eligibility.ts";
 
 type Deps = {
-  store: Pick<ChatStore, "list" | "load" | "damaged">;
+  store: Pick<ChatStore, "list" | "load" | "isDamaged">;
   controls: Pick<Controls, "state" | "note">;
   policy: OwnershipPolicy;
 };
@@ -34,14 +35,7 @@ function latestFailure(view: ChatView, since: Date) {
 }
 
 const substantiveMessageTimes = (view: ChatView) =>
-  view.messages
-    .filter(
-      (m) =>
-        m.author.role !== "agent" ||
-        m.delivery === "sent" ||
-        m.delivery === "observed",
-    )
-    .map((m) => new Date(m.sentAt));
+  view.messages.filter(isVisibleMessage).map((m) => new Date(m.sentAt));
 
 async function failedNudge(deps: Deps, ref: ChatRef, since: Date) {
   const failure = latestFailure(await deps.store.load(ref), since);

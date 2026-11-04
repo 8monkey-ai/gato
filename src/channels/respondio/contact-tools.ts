@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { ConfigError } from "../../config/env.ts";
 import type { McpClient, McpToolInfo } from "../../tools/mcp-client.ts";
 import { type InputTransform, mcpAgentTools } from "../../tools/mcp-tools.ts";
 import type { McpSettings } from "./settings.ts";
@@ -12,6 +13,8 @@ type Input = Record<string, unknown>;
 type Rule = (input: Input, policy: Policy) => string | undefined;
 
 const contactKeys = ["identifier", "contactId"];
+// Names such as primaryContactId or contactIds address contacts the identifier check cannot limit.
+const otherContactKey = /.contactid$|contactids$/i;
 const inputObject = z.record(z.string(), z.unknown());
 const toolSchema = z.looseObject({
   properties: inputObject.optional(),
@@ -84,22 +87,47 @@ function checker(chatId: string, policy: Policy): InputTransform {
   };
 }
 
+function contactScoped(tool: McpToolInfo) {
+  const keys = Object.keys(
+    toolSchema.safeParse(tool.inputSchema).data?.properties ?? {},
+  );
+  return (
+    keys.includes("identifier") &&
+    !keys.some((key) => otherContactKey.test(key))
+  );
+}
+
+function assertPermittedScoped(offered: McpToolInfo[], permitted: string[]) {
+  const names = new Set(offered.map((tool) => tool.name));
+  const missing = permitted.filter((name) => !names.has(name));
+  if (missing.length > 0)
+    throw new ConfigError(
+      `respond.io MCP server does not offer the permitted tools: ${missing.join(", ")}`,
+    );
+  const unscoped = offered
+    .filter((tool) => permitted.includes(tool.name) && !contactScoped(tool))
+    .map((tool) => tool.name);
+  if (unscoped.length > 0)
+    throw new ConfigError(
+      `respond.io MCP tools cannot be limited to the current contact: ${unscoped.join(", ")}`,
+    );
+}
+
 export async function createContactTools(
   client: Pick<McpClient, "tools" | "call">,
   policy: Policy,
 ) {
-  const offered = (await client.tools()).map(forModel);
+  const tools = await client.tools();
+  assertPermittedScoped(tools, policy.tools);
+  const offered = tools.map(forModel);
   const cached = {
     tools: () => Promise.resolve(offered),
     call: client.call.bind(client),
   };
-  const toolsFor = (chatId: string) =>
+  return (chatId: string) =>
     mcpAgentTools(cached, {
       prefix: "respondio",
       permitted: policy.tools,
       transformInput: checker(chatId, policy),
     });
-  // Fails startup when the server does not offer a permitted tool.
-  await toolsFor("");
-  return toolsFor;
 }

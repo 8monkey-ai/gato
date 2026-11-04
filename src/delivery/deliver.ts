@@ -6,13 +6,6 @@ import { createSender, type DeliveryJob, type SenderDeps } from "./sender.ts";
 import { createSplitter } from "./split.ts";
 import { planParts } from "./transform.ts";
 
-export type DeliveryResult = {
-  sentParts: number;
-  failed: boolean;
-  interrupted: boolean;
-  uncertain: boolean;
-};
-
 export function createDelivery({
   store,
   settings,
@@ -51,8 +44,8 @@ export function createDelivery({
           if (settings.timing === "stream") enqueue(texts);
           else held.push(...texts);
         },
-        end(): Promise<DeliveryResult> {
-          enqueue([...held, ...splitter.end()]);
+        end() {
+          enqueue([...held.splice(0), ...splitter.end()]);
           return sender.finish();
         },
       };

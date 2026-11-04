@@ -15,6 +15,14 @@ const rules = [
   "A message that starts with [Internal trigger ...] is not from the customer.",
 ];
 
+const localDate = (time: Date, timeZone: string) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(time);
+
 function contactSection(contact: Record<string, string>) {
   const lines = Object.entries(contact).map(
     ([key, value]) => `- ${key}: ${value}`,
@@ -27,23 +35,24 @@ function contactSection(contact: Record<string, string>) {
 export function buildInstructions(input: {
   revision: Pick<Revision, "instructions" | "skills">;
   country: Country;
-  today: string;
+  now: Date;
+  timeZone: string;
   contact: Record<string, string>;
   summary?: Summary;
 }): string {
-  const { summary } = input;
+  const { summary, timeZone } = input;
   return [
     input.revision.instructions.trim(),
     "# Skills",
     "Before you answer, call read_skill for each skill that is relevant to the conversation.",
     skillCatalogue(input.revision),
     "# Context",
-    `Today is ${input.today}.`,
+    `Today is ${localDate(input.now, timeZone)}.`,
     `You serve customers in ${countryNames[input.country]}. This sets the business context, not the reply language.`,
     ...contactSection(input.contact),
     ...(summary
       ? [
-          `# Private memory from earlier conversations (dated ${summary.generatedAt})`,
+          `# Private memory from earlier conversations (dated ${localDate(new Date(summary.generatedAt), timeZone)})`,
           summary.text.trim(),
         ]
       : []),

@@ -35,13 +35,34 @@ type Chat = {
   endsWithNewline: boolean;
 };
 
-async function loadChats(dataDir: string, log: Logger) {
-  const chats = new Map<string, Chat>();
-  const damaged: { ref: ChatRef; error: string }[] = [];
-  const report = (ref: ChatRef, error: string) => {
-    damaged.push({ ref, error });
-    log.error("chat.damaged", { ...ref, error });
+type Damage = { ref: ChatRef; errors: string[] };
+
+function damageRegister(log: Logger) {
+  const damaged = new Map<string, Damage>();
+  return {
+    report: (ref: ChatRef, error: string) => {
+      const known = damaged.get(chatKey(ref));
+      if (known?.errors.includes(error)) return;
+      if (known) known.errors.push(error);
+      else damaged.set(chatKey(ref), { ref, errors: [error] });
+      log.error("chat.damaged", { ...ref, error });
+    },
+    isDamaged: (ref: ChatRef) => damaged.has(chatKey(ref)),
+    damaged: () => [...damaged.values()],
   };
+}
+type Report = ReturnType<typeof damageRegister>["report"];
+
+function readChat(chat: Chat, text: string, report: Report) {
+  const { entries, errors, endsWithNewline } = parseEntries(text);
+  for (const error of errors) report(chat.ref, error);
+  chat.entries = entries;
+  chat.view = project(entries);
+  chat.endsWithNewline = endsWithNewline;
+}
+
+async function loadChats(dataDir: string, report: Report) {
+  const chats = new Map<string, Chat>();
   for (const connectionId of await subdirectories(dataDir)) {
     for (const chatId of await subdirectories(
       path.join(dataDir, connectionId),
@@ -54,19 +75,19 @@ async function loadChats(dataDir: string, log: Logger) {
         report(ref, "folder name is not a valid chat id, chat not loaded");
         continue;
       }
-      const { entries, errors, endsWithNewline } = parseEntries(text);
-      for (const error of errors) report(ref, error);
-      chats.set(chatKey(ref), {
-        ref,
-        dir,
-        entries,
-        view: project(entries),
-        endsWithNewline,
-      });
+      const chat = { ref, dir, ...emptyChat() };
+      readChat(chat, text, report);
+      chats.set(chatKey(ref), chat);
     }
   }
-  return { chats, damaged };
+  return chats;
 }
+
+const emptyChat = () => ({
+  entries: [] as Entry[],
+  view: project([]),
+  endsWithNewline: true,
+});
 
 function createMutex() {
   const tails = new Map<string, Promise<unknown>>();
@@ -74,15 +95,44 @@ function createMutex() {
     const result = (tails.get(key) ?? Promise.resolve()).then(fn);
     const tail = result.catch(() => undefined);
     tails.set(key, tail);
-    void tail.then(() => tails.get(key) === tail && tails.delete(key));
+    void tail.then(() => {
+      if (tails.get(key) === tail) tails.delete(key);
+    });
     return result;
   };
+}
+
+// After a failed write the file may hold a torn line or some of the entries. The file is the
+// source of truth, so the chat state is read again: seq numbers on disk are not used twice.
+async function recoverFromFailedWrite(chat: Chat, report: Report) {
+  const file = path.join(chat.dir, "events.jsonl");
+  try {
+    readChat(chat, (await readOptional(file)) ?? "", report);
+  } catch {
+    // The state on disk is unknown, so the chat takes no new agent work.
+    report(chat.ref, "events.jsonl could not be read after a failed write");
+  }
+}
+
+async function writeEntries(chat: Chat, added: Entry[], report: Report) {
+  const lines = added.map((entry) => JSON.stringify(entry) + "\n").join("");
+  const text = (chat.endsWithNewline ? "" : "\n") + lines;
+  chat.endsWithNewline = false;
+  try {
+    await fs.mkdir(chat.dir, { recursive: true });
+    await appendDurable(path.join(chat.dir, "events.jsonl"), text);
+  } catch (error) {
+    await recoverFromFailedWrite(chat, report);
+    throw error;
+  }
+  chat.endsWithNewline = true;
 }
 
 async function appendEntries(
   chat: Chat,
   bodies: NewEntry[],
   { timeZone, now = () => new Date() }: ChatLogOptions,
+  report: Report,
 ) {
   if (bodies.length === 0) return chat.view;
   const at = now().toISOString();
@@ -91,13 +141,7 @@ async function appendEntries(
     seq: chat.view.lastSeq + i + 1,
     at,
   }));
-  await fs.mkdir(chat.dir, { recursive: true });
-  const lines = added.map((entry) => JSON.stringify(entry) + "\n").join("");
-  await appendDurable(
-    path.join(chat.dir, "events.jsonl"),
-    (chat.endsWithNewline ? "" : "\n") + lines,
-  );
-  chat.endsWithNewline = true;
+  await writeEntries(chat, added, report);
   chat.entries.push(...added);
   chat.view = project(chat.entries);
   await writeAtomic(
@@ -108,16 +152,15 @@ async function appendEntries(
 }
 
 export async function openChatLog(dataDir: string, options: ChatLogOptions) {
-  const { chats, damaged } = await loadChats(dataDir, options.log);
+  const damage = damageRegister(options.log);
+  const chats = await loadChats(dataDir, damage.report);
   const lock = createMutex();
   const chatFor = (ref: ChatRef) => {
     const key = chatKey(ref);
     const chat = chats.get(key) ?? {
       ref: { connectionId: ref.connectionId, chatId: ref.chatId },
       dir: chatDir(dataDir, ref),
-      entries: [],
-      view: project([]),
-      endsWithNewline: true,
+      ...emptyChat(),
     };
     chats.set(key, chat);
     return chat;
@@ -130,7 +173,7 @@ export async function openChatLog(dataDir: string, options: ChatLogOptions) {
       const chat = chatFor(ref);
       return fn({
         view: () => chat.view,
-        append: (bodies) => appendEntries(chat, bodies, options),
+        append: (bodies) => appendEntries(chat, bodies, options, damage.report),
       });
     });
   return {
@@ -141,6 +184,7 @@ export async function openChatLog(dataDir: string, options: ChatLogOptions) {
     append: (ref: ChatRef, bodies: NewEntry[]) =>
       withChat(ref, (session) => session.append(bodies)),
     withChat,
-    damaged: () => [...damaged],
+    isDamaged: damage.isDamaged,
+    damaged: damage.damaged,
   };
 }

@@ -31,9 +31,14 @@ export type SenderDeps = {
 type State = {
   sentParts: number;
   failed: boolean;
-  uncertain: boolean;
   index: number;
   stopError?: string;
+};
+// error: a store append failed, so the record of this delivery is incomplete.
+export type DeliveryResult = {
+  sentParts: number;
+  failed: boolean;
+  error?: unknown;
 };
 type Context = SenderDeps & DeliveryJob & { state: State };
 
@@ -130,7 +135,6 @@ async function applyOutcome(
     });
   }
   const uncertain = outcome.status === "uncertain";
-  ctx.state.uncertain ||= uncertain;
   ctx.state.failed ||= !uncertain;
   ctx.state.stopError = uncertain
     ? "not sent after uncertain delivery"
@@ -167,7 +171,7 @@ export function createSender(deps: SenderDeps, job: DeliveryJob) {
   const ctx: Context = {
     ...deps,
     ...job,
-    state: { sentParts: 0, failed: false, uncertain: false, index: 0 },
+    state: { sentParts: 0, failed: false, index: 0 },
   };
   let queue = Promise.resolve();
   let broken: { error: unknown } | undefined;
@@ -179,11 +183,12 @@ export function createSender(deps: SenderDeps, job: DeliveryJob) {
           broken = { error };
         });
     },
-    async finish() {
+    async finish(): Promise<DeliveryResult> {
       await queue;
-      if (broken) throw broken.error;
-      const { sentParts, failed, uncertain } = ctx.state;
-      return { sentParts, failed, uncertain, interrupted: job.signal.aborted };
+      const { sentParts, failed } = ctx.state;
+      return broken
+        ? { sentParts, failed, error: broken.error }
+        : { sentParts, failed };
     },
   };
 }

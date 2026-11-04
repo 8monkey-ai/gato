@@ -66,7 +66,7 @@ test("the paused and closed files set the local state", async () => {
 });
 
 test("local labels append only labels not yet in labels.txt", async () => {
-  const { store, controls } = await setup(connection());
+  const { controls } = await setup(connection());
   await fs.mkdir(chatFile(""), { recursive: true });
   await fs.writeFile(chatFile("labels.txt"), "vip");
   await controls.addLabels(ref, ["vip", "handoff", "handoff"]);
@@ -74,7 +74,9 @@ test("local labels append only labels not yet in labels.txt", async () => {
     "vip\nhandoff\n",
   );
   expect(await controls.readLabels(ref)).toEqual(["vip", "handoff"]);
-  expect((await store.load(ref)).localLabels).toEqual(["vip", "handoff"]);
+  expect(await fs.readFile(chatFile("events.jsonl"), "utf8")).toContain(
+    '"labels":["vip","handoff","handoff"]',
+  );
 });
 
 test("a note goes to the notes port and a port failure is only logged", async () => {

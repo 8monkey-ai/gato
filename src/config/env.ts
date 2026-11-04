@@ -18,6 +18,8 @@ export type EnvReader = {
     parse: (raw: string) => T | undefined,
     fallback?: T,
   ): T;
+  // Reports a problem that no parser can see, such as a variable that conflicts with another one.
+  problem(name: string, message: string): void;
   scope(prefix: string): EnvReader;
   root(): EnvReader;
   assertValid(): void;
@@ -115,6 +117,9 @@ function scopedReader(
         (v) => values.find((value) => value === v),
         fallback,
       ),
+    problem: (name, message) => {
+      problems.push(`${prefix + name}: ${message}`);
+    },
     scope: (inner) => scopedReader(vars, prefix + inner, problems),
     root: () => scopedReader(vars, "", problems),
     assertValid: () => {

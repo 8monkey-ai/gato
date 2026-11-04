@@ -1,12 +1,10 @@
 import type { Controls } from "../conversation/controls.ts";
-import { chatKey } from "../storage/chat-files.ts";
 import type { ChatStore } from "../storage/chat-store.ts";
 
 export async function inspectChats(deps: {
-  store: Pick<ChatStore, "list" | "damaged">;
+  store: Pick<ChatStore, "list" | "isDamaged">;
   controls: Pick<Controls, "state">;
 }) {
-  const damaged = new Set(deps.store.damaged().map((d) => chatKey(d.ref)));
   return Promise.all(
     deps.store.list().map(async (ref) => {
       const { owner, open, view } = await deps.controls.state(ref);
@@ -19,7 +17,7 @@ export async function inspectChats(deps: {
         owner,
         open,
         pendingInput: view.hasPendingInput,
-        damaged: damaged.has(chatKey(ref)),
+        damaged: deps.store.isDamaged(ref),
         latestTurn: turn && {
           trigger: turn.trigger,
           startedAt: turn.startedAt,

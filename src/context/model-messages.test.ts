@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 
+import { PreparationError } from "../attachments/prepare.ts";
 import type { RecordedMessage } from "../record/projection.ts";
 import type { Attachment, Author } from "../record/types.ts";
 import type { HistoryItem } from "./history.ts";
@@ -130,17 +131,11 @@ test("sends unprepared files directly and prepared ones as text", async () => {
   ]);
 });
 
-test("an operator file keeps the operator role", async () => {
+test("a prepared operator attachment keeps the operator role", async () => {
   const messages = await toModelMessages(
     [
       item({ role: "operator", name: "Ana" }, undefined, [
-        {
-          id: "a1",
-          category: "document",
-          source: "s",
-          file: "attachments/a1",
-          mediaType: "application/pdf",
-        },
+        mixedAttachments[1] as Attachment,
       ]),
     ],
     options,
@@ -150,16 +145,32 @@ test("an operator file keeps the operator role", async () => {
       role: "assistant",
       content: [
         { type: "text", text: "[Human colleague Ana]" },
-        {
-          type: "file",
-          data: new TextEncoder().encode("attachments/a1"),
-          mediaType: "application/pdf",
-          filename: undefined,
-        },
+        { type: "text", text: "[audio transcript v.ogg: refund please]" },
       ],
     },
   ]);
 });
+
+test.each<Author>([{ role: "operator", name: "Ana" }, { role: "workflow" }])(
+  "a stored %p file without a preparation model fails instead of being dropped",
+  async (author) => {
+    const document: Attachment = {
+      id: "a1",
+      category: "document",
+      source: "s",
+      file: "attachments/a1",
+      fileName: "d.pdf",
+    };
+    const error = await toModelMessages(
+      [item(author, "See", [document])],
+      options,
+    ).catch((e: unknown) => e as Error);
+    expect(error).toBeInstanceOf(PreparationError);
+    expect((error as Error).message).toBe(
+      "Preparation of document attachment d.pdf failed: main model cannot take document files from colleagues; configure GATO_DOCUMENT_MODEL",
+    );
+  },
+);
 
 const base = {
   turnId: "t1",

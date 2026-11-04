@@ -33,3 +33,12 @@ test("takes over a lock left by a process that ended", async () => {
   );
   await release();
 });
+
+test("takes over a lock that holds this process id from before a restart", async () => {
+  await fs.writeFile(path.join(dataDir, ".gato.lock"), String(process.pid));
+  const release = await acquireInstanceLock(dataDir);
+  await expect(acquireInstanceLock(dataDir)).rejects.toThrow(
+    "is in use by process",
+  );
+  await release();
+});
