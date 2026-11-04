@@ -1,0 +1,24 @@
+[lint]
+# Unawaited promises are a frequent bug in async agent code. The type-aware rules find them.
+typeAware = true
+# Report type errors in the same pass, so one type check covers lint and types.
+typeCheck = true
+# Warnings (unused code, unused disable comments) fail the run, so none stay in the code.
+maxWarnings = 0
+
+[lint.rules]
+# Keep functions and files small enough to review.
+"complexity" = ["error", 10]
+"max-lines-per-function" = [
+  "error",
+  { max = 50, skipBlankLines = true, skipComments = true },
+]
+"max-lines" = [
+  "error",
+  { max = 300, skipBlankLines = true, skipComments = true },
+]
+"import/no-cycle" = "error"
+
+[fmt]
+# The tool sets the import order, so authors do not.
+sortImports = true

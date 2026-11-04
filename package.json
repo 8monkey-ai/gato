@@ -1,0 +1,16 @@
+{
+  "name": "gato",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "packageManager": "bun@1.4.4-canary.1",
+  "scripts": {
+    "check": "bun fmt --check && bun lint"
+  },
+  "peerDependencies": {
+    "typescript": "^7"
+  },
+  "devDependencies": {
+    "bun-types": "^1.4.4-canary.20261103T140956"
+  }
+}
