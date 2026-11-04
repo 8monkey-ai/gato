@@ -15,7 +15,10 @@ import { createReconciler } from "./reconcile.ts";
 type Deps = {
   store: ChatStore;
   controls: Pick<Controls, "state" | "note" | "handoff" | "readLabels">;
-  scheduler: Pick<ReturnType<typeof createScheduler>, "busy" | "runExclusive">;
+  scheduler: Pick<
+    ReturnType<typeof createScheduler>,
+    "busy" | "runExclusive" | "ownershipChange"
+  >;
   connection: (connectionId: string) => ChannelConnection;
   settings: Pick<Settings, "nudges" | "ownershipPolicy" | "timeZone">;
   log: Logger;
@@ -108,7 +111,10 @@ async function checkChat(
 }
 
 export function createNudgeChecker(d: Deps) {
-  const reconciler = createReconciler(d);
+  const reconciler = createReconciler({
+    ...d,
+    onOwnershipChange: d.scheduler.ownershipChange,
+  });
   let running: Promise<void> | undefined;
   let lastCheckAt: string | undefined;
   let timers: ReturnType<typeof setTimeout>[] = [];

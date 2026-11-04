@@ -53,9 +53,9 @@ async function recordMessage(
         eventId,
       },
     ]);
-    return false;
+    return undefined;
   }
-  if (known) return false;
+  if (known) return undefined;
   await session.append([
     {
       type: "message",
@@ -74,7 +74,7 @@ async function recordMessage(
       eventId,
     },
   ]);
-  return message.author.role === "customer";
+  return message;
 }
 
 type Context = {
@@ -83,6 +83,7 @@ type Context = {
   log: Logger;
   now: () => Date;
   onCustomerMessage: (ref: ChatRef) => unknown;
+  onNewAttachments: (ref: ChatRef) => unknown;
   onOwnershipChange: (ref: ChatRef, previous: Owner, owner: Owner) => unknown;
 };
 
@@ -91,7 +92,7 @@ async function recordState(
   ref: ChatRef,
   session: ChatSession,
   event: EventOf<"ownership" | "status">,
-): Promise<FollowUp | undefined> {
+): Promise<FollowUp[]> {
   const previous = (await ctx.controls.state(ref)).owner;
   const eventAt = event.at.toISOString();
   const { eventId } = event;
@@ -108,8 +109,8 @@ async function recordState(
   ]);
   const { owner } = await ctx.controls.state(ref);
   return owner === previous
-    ? undefined
-    : () => ctx.onOwnershipChange(ref, previous, owner);
+    ? []
+    : [() => ctx.onOwnershipChange(ref, previous, owner)];
 }
 
 async function record(
@@ -117,11 +118,16 @@ async function record(
   ref: ChatRef,
   session: ChatSession,
   event: InboundEvent,
-): Promise<FollowUp | undefined> {
-  if (session.view().seenEventIds.has(event.eventId)) return undefined;
+): Promise<FollowUp[]> {
+  if (session.view().seenEventIds.has(event.eventId)) return [];
   if (event.kind !== "message") return recordState(ctx, ref, session, event);
-  const isNewCustomerMessage = await recordMessage(session, event, ctx.now());
-  return isNewCustomerMessage ? () => ctx.onCustomerMessage(ref) : undefined;
+  const added = await recordMessage(session, event, ctx.now());
+  return [
+    ...(added?.attachments.length ? [() => ctx.onNewAttachments(ref)] : []),
+    ...(added?.author.role === "customer"
+      ? [() => ctx.onCustomerMessage(ref)]
+      : []),
+  ];
 }
 
 export function createIngest(ctx: Context) {
@@ -130,15 +136,15 @@ export function createIngest(ctx: Context) {
       (connectionId: string): InboundSink =>
       async (event) => {
         const ref = { connectionId, chatId: event.chatId };
-        const followUp = await ctx.store.withChat(ref, (session) =>
+        const followUps = await ctx.store.withChat(ref, (session) =>
           record(ctx, ref, session, event),
         );
-        if (!followUp) return;
-        void Promise.resolve()
-          .then(followUp)
-          .catch((error: unknown) =>
-            ctx.log.error("ingest.follow_up_failed", { ...ref, error }),
-          );
+        for (const followUp of followUps)
+          void Promise.resolve()
+            .then(followUp)
+            .catch((error: unknown) =>
+              ctx.log.error("ingest.follow_up_failed", { ...ref, error }),
+            );
       },
   };
 }

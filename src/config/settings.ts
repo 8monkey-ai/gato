@@ -55,9 +55,7 @@ function readModels(env: EnvReader) {
     openRouterApiKey: env.string("OPENROUTER_API_KEY"),
     model,
     summaryModel: env.optionalString("GATO_SUMMARY_MODEL") ?? model,
-    summaryPromptFile: env.string("GATO_SUMMARY_PROMPT_FILE", {
-      default: "prompts/summary.md",
-    }),
+    summaryPromptFile: env.optionalString("GATO_SUMMARY_PROMPT_FILE"),
     preparationModels: {
       image: env.optionalString("GATO_IMAGE_MODEL"),
       document: env.optionalString("GATO_DOCUMENT_MODEL"),

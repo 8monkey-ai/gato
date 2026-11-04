@@ -53,17 +53,22 @@ async function setup(native = false) {
   });
   const customerTurns: string[] = [];
   const ownerChanges: string[] = [];
+  const retrievals: string[] = [];
   const sink = createIngest({
     store,
     controls,
     log,
     now,
     onCustomerMessage: (r) => customerTurns.push(r.chatId),
+    onNewAttachments: (r) => {
+      retrievals.push(r.chatId);
+      return Promise.reject(new Error("download failed"));
+    },
     onOwnershipChange: (_r, previous, owner) =>
       ownerChanges.push(`${previous}->${owner}`),
   }).sinkFor("rio");
   const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
-  return { store, sink, customerTurns, ownerChanges, settle };
+  return { store, sink, customerTurns, ownerChanges, retrievals, settle };
 }
 
 async function agentPart(
@@ -225,4 +230,20 @@ test("an older ownership event is recorded but does not change the owner", async
   expect(view.lastSeq).toBe(2);
   expect(view.ownership?.owner).toBe("agent");
   expect(ownerChanges).toEqual(["none->agent"]);
+});
+
+test("a new message with attachments requests retrieval without waiting for it", async () => {
+  const { sink, customerTurns, retrievals, settle } = await setup();
+  const withFile = (event: InboundEvent) => {
+    if (event.kind === "message")
+      event.message.attachments = [{ category: "image", source: "s1" }];
+    return event;
+  };
+  await sink(withFile(message("e1", "p1", { role: "operator" })));
+  await sink(withFile(message("e1", "p1", { role: "operator" })));
+  await sink(message("e2", "p2", { role: "customer" }));
+  await sink(withFile(message("e3", "p3", { role: "customer" })));
+  await settle();
+  expect(retrievals).toEqual(["42", "42"]);
+  expect(customerTurns).toEqual(["42", "42"]);
 });

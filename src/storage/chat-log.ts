@@ -7,7 +7,9 @@ import { renderChat } from "../record/render.ts";
 import type { ChatRef, Entry, EntryBody } from "../record/types.ts";
 import {
   appendDurable,
-  folderName,
+  chatDir,
+  chatKey,
+  isChatId,
   parseEntries,
   readOptional,
   subdirectories,
@@ -33,11 +35,13 @@ type Chat = {
   endsWithNewline: boolean;
 };
 
-const keyOf = (ref: ChatRef) => `${ref.connectionId}/${folderName(ref.chatId)}`;
-
 async function loadChats(dataDir: string, log: Logger) {
   const chats = new Map<string, Chat>();
   const damaged: { ref: ChatRef; error: string }[] = [];
+  const report = (ref: ChatRef, error: string) => {
+    damaged.push({ ref, error });
+    log.error("chat.damaged", { ...ref, error });
+  };
   for (const connectionId of await subdirectories(dataDir)) {
     for (const chatId of await subdirectories(
       path.join(dataDir, connectionId),
@@ -46,12 +50,13 @@ async function loadChats(dataDir: string, log: Logger) {
       const text = await readOptional(path.join(dir, "events.jsonl"));
       if (text === undefined) continue;
       const ref = { connectionId, chatId };
-      const { entries, errors, endsWithNewline } = parseEntries(text);
-      for (const error of errors) {
-        damaged.push({ ref, error });
-        log.error("chat.damaged", { connectionId, chatId, error });
+      if (!isChatId(chatId)) {
+        report(ref, "folder name is not a valid chat id, chat not loaded");
+        continue;
       }
-      chats.set(keyOf(ref), {
+      const { entries, errors, endsWithNewline } = parseEntries(text);
+      for (const error of errors) report(ref, error);
+      chats.set(chatKey(ref), {
         ref,
         dir,
         entries,
@@ -106,10 +111,10 @@ export async function openChatLog(dataDir: string, options: ChatLogOptions) {
   const { chats, damaged } = await loadChats(dataDir, options.log);
   const lock = createMutex();
   const chatFor = (ref: ChatRef) => {
-    const key = keyOf(ref);
+    const key = chatKey(ref);
     const chat = chats.get(key) ?? {
-      ref: { connectionId: ref.connectionId, chatId: folderName(ref.chatId) },
-      dir: path.join(dataDir, ref.connectionId, folderName(ref.chatId)),
+      ref: { connectionId: ref.connectionId, chatId: ref.chatId },
+      dir: chatDir(dataDir, ref),
       entries: [],
       view: project([]),
       endsWithNewline: true,
@@ -121,7 +126,7 @@ export async function openChatLog(dataDir: string, options: ChatLogOptions) {
     ref: ChatRef,
     fn: (session: ChatSession) => Promise<T>,
   ) =>
-    lock(keyOf(ref), () => {
+    lock(chatKey(ref), () => {
       const chat = chatFor(ref);
       return fn({
         view: () => chat.view,
@@ -132,7 +137,7 @@ export async function openChatLog(dataDir: string, options: ChatLogOptions) {
     list: () =>
       [...chats.values()].filter((c) => c.entries.length > 0).map((c) => c.ref),
     load: (ref: ChatRef) =>
-      Promise.resolve(chats.get(keyOf(ref))?.view ?? project([])),
+      Promise.resolve(chats.get(chatKey(ref))?.view ?? project([])),
     append: (ref: ChatRef, bodies: NewEntry[]) =>
       withChat(ref, (session) => session.append(bodies)),
     withChat,

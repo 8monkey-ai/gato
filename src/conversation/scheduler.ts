@@ -1,7 +1,7 @@
 import type { Logger } from "../log.ts";
 import type { ChatView } from "../record/projection.ts";
 import type { ChatRef, Owner, TurnEnd, TurnTrigger } from "../record/types.ts";
-import { folderName } from "../storage/chat-files.ts";
+import { chatKey } from "../storage/chat-files.ts";
 import type { ChatStore, NewEntry } from "../storage/chat-store.ts";
 import type { Controls } from "./controls.ts";
 import { agentMayAnswer, type OwnershipPolicy } from "./ownership.ts";
@@ -11,8 +11,6 @@ type Run = {
   done: Promise<TurnEnd>;
   queued?: TurnTrigger;
 };
-
-const keyOf = (ref: ChatRef) => `${ref.connectionId}/${folderName(ref.chatId)}`;
 
 function latestVisibleIsCustomer(view: ChatView) {
   const visible = view.messages.filter(
@@ -58,7 +56,7 @@ type Context = {
 type Scheduler = Context & { runs: Map<string, Run>; stopping: boolean };
 
 const isDamaged = ({ store }: Scheduler, ref: ChatRef) =>
-  store.damaged().some((d) => keyOf(d.ref) === keyOf(ref));
+  store.damaged().some((d) => chatKey(d.ref) === chatKey(ref));
 
 async function admitted(s: Scheduler, ref: ChatRef, trigger: TurnTrigger) {
   try {
@@ -105,9 +103,9 @@ function launch(
     controller: new AbortController(),
     done: Promise.resolve("skipped"),
   };
-  s.runs.set(keyOf(ref), run);
+  s.runs.set(chatKey(ref), run);
   run.done = execute(s, ref, trigger, run, admit).finally(() => {
-    s.runs.delete(keyOf(ref));
+    s.runs.delete(chatKey(ref));
     if (run.queued) startEligible(s, ref, run.queued);
   });
   return run.done;
@@ -119,7 +117,7 @@ function startEligible(s: Scheduler, ref: ChatRef, trigger: TurnTrigger) {
 }
 
 function customerMessage(s: Scheduler, ref: ChatRef) {
-  const run = s.runs.get(keyOf(ref));
+  const run = s.runs.get(chatKey(ref));
   if (!run) return startEligible(s, ref, "customer");
   run.queued = "customer";
   run.controller.abort("interrupted");
@@ -133,7 +131,7 @@ function ownershipChange(
 ) {
   if (agentMayAnswer(previous, s.policy) || !agentMayAnswer(owner, s.policy))
     return;
-  const run = s.runs.get(keyOf(ref));
+  const run = s.runs.get(chatKey(ref));
   if (run) run.queued ??= "review";
   else startEligible(s, ref, "review");
 }
@@ -145,7 +143,7 @@ async function recover(s: Scheduler) {
       const view = await s.store.withChat(ref, (session) =>
         session.append(recoveryEntries(session.view())),
       );
-      if (view.hasPendingInput && !s.runs.has(keyOf(ref)))
+      if (view.hasPendingInput && !s.runs.has(chatKey(ref)))
         startEligible(s, ref, "customer");
     } catch (error) {
       s.log.error("scheduler.recover_failed", { ...ref, error });
@@ -176,11 +174,11 @@ export function createScheduler(ctx: Context) {
       ref: ChatRef,
       trigger: TurnTrigger,
     ): Promise<TurnEnd | "busy"> =>
-      s.stopping || s.runs.has(keyOf(ref))
+      s.stopping || s.runs.has(chatKey(ref))
         ? Promise.resolve("busy")
         : launch(s, ref, trigger, () => Promise.resolve(true)),
     recover: () => recover(s),
     stop: (graceMs: number) => stop(s, graceMs),
-    busy: (ref: ChatRef) => s.runs.has(keyOf(ref)),
+    busy: (ref: ChatRef) => s.runs.has(chatKey(ref)),
   };
 }

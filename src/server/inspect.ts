@@ -1,5 +1,5 @@
 import type { Controls } from "../conversation/controls.ts";
-import { chatKey } from "../nudges/chats.ts";
+import { chatKey } from "../storage/chat-files.ts";
 import type { ChatStore } from "../storage/chat-store.ts";
 
 export async function inspectChats(deps: {

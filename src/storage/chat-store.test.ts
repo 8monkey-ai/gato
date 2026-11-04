@@ -148,17 +148,39 @@ test("stores summaries, text files and attachments in the chat folder", async ()
   expect(() => store.attachmentPath(ref, "../events.jsonl")).toThrow();
 });
 
-test("maps chat ids with other characters to distinct folder names", async () => {
+test("uses the chat id as folder name and refuses other chat ids", async () => {
   const store = await open();
-  await store.append({ connectionId: "tg", chatId: "a.b" }, [
+  await store.append({ connectionId: "tg", chatId: "-100_a-B9" }, [
     customerMessage("m1"),
   ]);
-  await store.append({ connectionId: "tg", chatId: "a/b" }, [
-    customerMessage("m2"),
+  expect(await fs.readdir(path.join(dataDir, "tg"))).toEqual(["-100_a-B9"]);
+  for (const chatId of ["a.b", "a/b", "", "x".repeat(129)]) {
+    const bad = { connectionId: "tg", chatId };
+    await expect(store.append(bad, [customerMessage("m2")])).rejects.toThrow(
+      `Invalid chat id "${chatId}"`,
+    );
+    expect(() => store.fileExists(bad, "paused")).toThrow(
+      `Invalid chat id "${chatId}"`,
+    );
+  }
+});
+
+test("reports a folder whose name is not a chat id and does not load it", async () => {
+  await fs.mkdir(path.join(dataDir, "tg/a.b"), { recursive: true });
+  const line = JSON.stringify({
+    ...customerMessage("m1"),
+    seq: 1,
+    at: "2026-11-04T10:00:00Z",
+  });
+  await fs.writeFile(path.join(dataDir, "tg/a.b/events.jsonl"), `${line}\n`);
+  const store = await open();
+  expect(store.list()).toEqual([]);
+  expect(store.damaged()).toEqual([
+    {
+      ref: { connectionId: "tg", chatId: "a.b" },
+      error: "folder name is not a valid chat id, chat not loaded",
+    },
   ]);
-  const folders = (await fs.readdir(path.join(dataDir, "tg"))).sort();
-  expect(folders).toHaveLength(2);
-  expect(folders.every((f) => /^a_b-[0-9a-f]{8}$/.test(f))).toBe(true);
 });
 
 test("refuses a data folder that does not exist", async () => {

@@ -1,15 +1,22 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
 import { isEntryType } from "../record/projection.ts";
-import type { Entry } from "../record/types.ts";
+import type { ChatRef, Entry } from "../record/types.ts";
 
-export function folderName(chatId: string): string {
-  if (/^[A-Za-z0-9_-]+$/.test(chatId)) return chatId;
-  const hash = createHash("sha256").update(chatId).digest("hex").slice(0, 8);
-  return `${chatId.replaceAll(/[^A-Za-z0-9_-]/g, "_")}-${hash}`;
+export const isChatId = (chatId: string) =>
+  /^[A-Za-z0-9_-]{1,128}$/.test(chatId);
+
+export function chatDir(dataDir: string, ref: ChatRef): string {
+  if (!isChatId(ref.chatId))
+    throw new Error(
+      `Invalid chat id "${ref.chatId}": use 1 to 128 letters, digits, "_" or "-"`,
+    );
+  return path.join(dataDir, ref.connectionId, ref.chatId);
 }
+
+export const chatKey = (ref: ChatRef) => `${ref.connectionId}/${ref.chatId}`;
 
 export function plainFileName(name: string): string {
   if (name !== path.basename(name) || name.startsWith(".") || name === "")

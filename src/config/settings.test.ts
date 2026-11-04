@@ -25,7 +25,7 @@ test("applies the documented defaults", () => {
   expect(s.port).toBe(3000);
   expect(s.timeZone).toBe("UTC");
   expect(s.summaryModel).toBe("base/model");
-  expect(s.summaryPromptFile).toBe("prompts/summary.md");
+  expect(s.summaryPromptFile).toBeUndefined();
   expect(s.preparationModels).toEqual({
     image: undefined,
     document: undefined,

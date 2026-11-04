@@ -84,8 +84,11 @@ async function setup(
     log,
   });
   const runs: { chatId: string; trigger: string; nudgeNotes: number }[] = [];
+  const ownerChanges: string[] = [];
   const scheduler = {
     busy: () => false,
+    ownershipChange: (r: ChatRef, previous: string, owner: string) =>
+      ownerChanges.push(`${r.chatId}:${previous}->${owner}`),
     runExclusive: async (r: ChatRef, trigger: string) => {
       const notes = (await store.load(r)).notes;
       runs.push({
@@ -105,7 +108,7 @@ async function setup(
     log,
     now: () => clock,
   });
-  return { store, checker, runs };
+  return { store, checker, runs, ownerChanges };
 }
 
 const at = (minutes: number) => {
@@ -223,12 +226,13 @@ test("a native chat is skipped until its state is fetched once", async () => {
           : Promise.resolve({ owner: "agent", open: true }),
     },
   });
-  const { store, checker, runs } = await setup(connection);
+  const { store, checker, runs, ownerChanges } = await setup(connection);
   at(35);
   await checker.checkOnce();
   expect(runs).toEqual([]);
   expect(checker.readiness().unreconciledChats).toBe(1);
   await checker.checkOnce();
+  expect(ownerChanges).toEqual(["42:none->agent"]);
   at(12 * 60 + 36);
   await checker.checkOnce();
   expect(fetches).toBe(2);

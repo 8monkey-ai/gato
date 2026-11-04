@@ -3,7 +3,7 @@ import path from "node:path";
 
 import type { ChatRef } from "../record/types.ts";
 import {
-  folderName,
+  chatDir,
   plainFileName,
   readOptional,
   writeAtomic,
@@ -19,8 +19,7 @@ function parseSummary(text: string): Summary | undefined {
 }
 
 function folderPaths(dataDir: string) {
-  const dirOf = (ref: ChatRef) =>
-    path.join(dataDir, ref.connectionId, folderName(ref.chatId));
+  const dirOf = (ref: ChatRef) => chatDir(dataDir, ref);
   return {
     dirOf,
     fileOf: (ref: ChatRef, name: string) =>

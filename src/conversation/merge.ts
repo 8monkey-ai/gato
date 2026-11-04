@@ -4,7 +4,6 @@ import path from "node:path";
 
 import type { RecordedMessage } from "../record/projection.ts";
 import type { Attachment, ChatMessage, ChatRef } from "../record/types.ts";
-import { folderName } from "../storage/chat-files.ts";
 import type { ChatStore, NewEntry } from "../storage/chat-store.ts";
 
 type Store = Pick<
@@ -52,8 +51,7 @@ async function copyMessage(
 async function refuseReason(store: Store, from: ChatRef, into: ChatRef) {
   if (from.connectionId !== into.connectionId)
     return "Both chats must belong to the same connection";
-  if (folderName(from.chatId) === folderName(into.chatId))
-    return "A chat cannot be merged into itself";
+  if (from.chatId === into.chatId) return "A chat cannot be merged into itself";
   if ((await store.load(from)).lastSeq === 0)
     return `Unknown chat: ${from.chatId}`;
   if (await store.fileExists(from, "merged-into"))
