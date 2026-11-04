@@ -83,14 +83,18 @@ function readConversation(env: EnvReader) {
         default: true,
       }),
     },
-    labels: {
-      handoff: env.string("GATO_LABEL_HANDOFF", { default: "handoff" }),
-      outOfScope: env.string("GATO_LABEL_OUT_OF_SCOPE", {
-        default: "out-of-scope",
-      }),
-      error: env.string("GATO_LABEL_ERROR", { default: "error" }),
-      expired: env.string("GATO_LABEL_EXPIRED", { default: "expired" }),
-    },
+    labels: readLabels(env),
+  };
+}
+
+export function readLabels(env: EnvReader) {
+  return {
+    handoff: env.string("GATO_LABEL_HANDOFF", { default: "handoff" }),
+    outOfScope: env.string("GATO_LABEL_OUT_OF_SCOPE", {
+      default: "out-of-scope",
+    }),
+    error: env.string("GATO_LABEL_ERROR", { default: "error" }),
+    expired: env.string("GATO_LABEL_EXPIRED", { default: "expired" }),
   };
 }
 

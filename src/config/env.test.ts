@@ -37,6 +37,14 @@ test("reads prefixed names through a scope", () => {
   );
 });
 
+test("reads unprefixed names from the root of a scope and reports them together", () => {
+  const env = createEnvReader({ GATO_LABEL_HANDOFF: "human" });
+  const scoped = env.scope("GATO_CONNECTION_TG_");
+  expect(scoped.root().string("GATO_LABEL_HANDOFF")).toBe("human");
+  scoped.root().string("MISSING");
+  expect(() => env.assertValid()).toThrow("MISSING: required");
+});
+
 test("collects every problem into one ConfigError", () => {
   const env = createEnvReader({
     D: "5 minutes",

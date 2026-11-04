@@ -19,6 +19,7 @@ export type EnvReader = {
     fallback?: T,
   ): T;
   scope(prefix: string): EnvReader;
+  root(): EnvReader;
   assertValid(): void;
 };
 
@@ -115,6 +116,7 @@ function scopedReader(
         fallback,
       ),
     scope: (inner) => scopedReader(vars, prefix + inner, problems),
+    root: () => scopedReader(vars, "", problems),
     assertValid: () => {
       if (problems.length === 0) return;
       throw new ConfigError(

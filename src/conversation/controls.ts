@@ -34,10 +34,13 @@ async function state(ctx: Context, ref: ChatRef) {
   const view = await ctx.store.load(ref);
   const native = ctx.connection(ref.connectionId).assignment !== undefined;
   const local = localState(ctx.store);
-  const [paused, closed] = native
-    ? [false, false]
-    : await Promise.all([local.isPaused(ref), local.isClosed(ref)]);
-  return { ...chatState(view, { native, paused, closed }), view };
+  const [paused, closed, merged] = await Promise.all([
+    !native && local.isPaused(ref),
+    !native && local.isClosed(ref),
+    ctx.store.fileExists(ref, "merged-into"),
+  ]);
+  const current = chatState(view, { native, paused, closed });
+  return { ...current, open: current.open && !merged, view };
 }
 
 async function note(ctx: Context, ref: ChatRef, body: NoteBody) {

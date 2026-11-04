@@ -70,7 +70,9 @@ export type ChannelConnection = {
     read(chatId: string): Promise<string[]>;
   };
   notifyOperators?(chatId: string, text: string): Promise<void>;
-  contactTools?(chatId: string): AgentTool[]; // provider tools scoped to this contact
+  // Private facts about the customer for the prompt, such as name and language. Never internal ids.
+  contactContext?(chatId: string): Promise<Record<string, string>>;
+  contactTools?(chatId: string): Promise<AgentTool[]>; // provider tools scoped to this contact
 };
 
 export type ChannelType = {

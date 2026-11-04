@@ -1,6 +1,6 @@
 import type { Logger } from "../log.ts";
 import type { ChatView } from "../record/projection.ts";
-import type { ChatRef, Owner, TurnTrigger } from "../record/types.ts";
+import type { ChatRef, Owner, TurnEnd, TurnTrigger } from "../record/types.ts";
 import { folderName } from "../storage/chat-files.ts";
 import type { ChatStore, NewEntry } from "../storage/chat-store.ts";
 import type { Controls } from "./controls.ts";
@@ -8,7 +8,7 @@ import { agentMayAnswer, type OwnershipPolicy } from "./ownership.ts";
 
 type Run = {
   controller: AbortController;
-  done: Promise<boolean>;
+  done: Promise<TurnEnd>;
   queued?: TurnTrigger;
 };
 
@@ -52,7 +52,7 @@ type Context = {
     ref: ChatRef,
     trigger: TurnTrigger,
     signal: AbortSignal,
-  ) => Promise<void>;
+  ) => Promise<TurnEnd>;
   log: Logger;
 };
 type Scheduler = Context & { runs: Map<string, Run>; stopping: boolean };
@@ -84,14 +84,15 @@ async function execute(
   trigger: TurnTrigger,
   run: Run,
   admit: () => Promise<boolean>,
-) {
-  if (!(await admit()) || run.controller.signal.aborted) return false;
+): Promise<TurnEnd> {
+  if (!(await admit())) return "skipped";
+  if (run.controller.signal.aborted) return "interrupted";
   try {
-    await s.runTurn(ref, trigger, run.controller.signal);
+    return await s.runTurn(ref, trigger, run.controller.signal);
   } catch (error) {
     s.log.error("scheduler.turn_failed", { ...ref, trigger, error });
+    return "failed";
   }
-  return true;
 }
 
 function launch(
@@ -102,7 +103,7 @@ function launch(
 ) {
   const run: Run = {
     controller: new AbortController(),
-    done: Promise.resolve(false),
+    done: Promise.resolve("skipped"),
   };
   s.runs.set(keyOf(ref), run);
   run.done = execute(s, ref, trigger, run, admit).finally(() => {
@@ -171,9 +172,12 @@ export function createScheduler(ctx: Context) {
     customerMessage: (ref: ChatRef) => customerMessage(s, ref),
     ownershipChange: (ref: ChatRef, previous: Owner, owner: Owner) =>
       ownershipChange(s, ref, previous, owner),
-    runExclusive: (ref: ChatRef, trigger: TurnTrigger) =>
+    runExclusive: (
+      ref: ChatRef,
+      trigger: TurnTrigger,
+    ): Promise<TurnEnd | "busy"> =>
       s.stopping || s.runs.has(keyOf(ref))
-        ? Promise.resolve(false)
+        ? Promise.resolve("busy")
         : launch(s, ref, trigger, () => Promise.resolve(true)),
     recover: () => recover(s),
     stop: (graceMs: number) => stop(s, graceMs),

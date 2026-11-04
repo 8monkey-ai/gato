@@ -5,7 +5,12 @@ import path from "node:path";
 
 import type { ChannelConnection } from "../channels/channel.ts";
 import { createLogger } from "../log.ts";
-import type { ChatRef, EntryBody, TurnTrigger } from "../record/types.ts";
+import type {
+  ChatRef,
+  EntryBody,
+  TurnEnd,
+  TurnTrigger,
+} from "../record/types.ts";
 import { type NewEntry, openChatStore } from "../storage/chat-store.ts";
 import { createControls } from "./controls.ts";
 import { createScheduler } from "./scheduler.ts";
@@ -40,10 +45,10 @@ function fakeTurns(blockFirst: boolean) {
     calls.push({ chatId: r.chatId, trigger, signal });
     waiters.splice(0).forEach((wake) => wake());
     return blockFirst && calls.length === 1
-      ? new Promise<void>((resolve) =>
-          signal.addEventListener("abort", () => resolve()),
+      ? new Promise<TurnEnd>((resolve) =>
+          signal.addEventListener("abort", () => resolve("interrupted")),
         )
-      : Promise.resolve();
+      : Promise.resolve<TurnEnd>("completed");
   };
   const started = (count: number): Promise<void> =>
     calls.length >= count
@@ -198,14 +203,30 @@ test("recovery closes abandoned turns, marks pending parts uncertain and answers
   expect((await store.load(migrated)).lastSeq).toBe(1);
 });
 
+test("an exclusive run returns the turn outcome and a thrown turn counts as failed", async () => {
+  const { scheduler } = await setup([], { blockFirst: false });
+  expect(await scheduler.runExclusive(ref, "nudge")).toBe("completed");
+  const failing = createScheduler({
+    store: await openChatStore(dataDir, { timeZone: "UTC", log, now }),
+    controls: {
+      state: () => Promise.reject(new Error("unused")),
+      note: () => Promise.resolve(),
+    },
+    policy: "assigned",
+    runTurn: () => Promise.reject(new Error("boom")),
+    log,
+  });
+  expect(await failing.runExclusive(ref, "nudge")).toBe("failed");
+});
+
 test("a busy chat refuses an exclusive run and a stopped scheduler starts nothing", async () => {
   const { scheduler, calls, started } = await setup([]);
   const first = scheduler.runExclusive(ref, "nudge");
   await started(1);
-  expect(await scheduler.runExclusive(ref, "nudge")).toBe(false);
+  expect(await scheduler.runExclusive(ref, "nudge")).toBe("busy");
   await scheduler.stop(0);
-  expect(await first).toBe(true);
+  expect(await first).toBe("interrupted");
   scheduler.customerMessage(ref);
-  expect(await scheduler.runExclusive(ref, "nudge")).toBe(false);
+  expect(await scheduler.runExclusive(ref, "nudge")).toBe("busy");
   expect(calls.length).toBe(1);
 });
