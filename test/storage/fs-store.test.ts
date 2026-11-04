@@ -164,14 +164,14 @@ test("rejects names that are not one safe folder name", async () => {
   const store = await openTestStore(await tmpDataDir());
   await expect(store.read({ ...chat, chatKey: ".." })).rejects.toThrow(
     new Error(
-      'Chat key ".." cannot be a folder name. Use letters, digits, ".", "_" and "-", not starting with ".".',
+      'Chat key "..": expected a folder name of letters, digits, ".", "_" and "-", not starting with "."',
     ),
   );
   await expect(
     store.append({ ...chat, connection: "a/b" }, []),
   ).rejects.toThrow(
     new Error(
-      'Connection name "a/b" cannot be a folder name. Use letters, digits, ".", "_" and "-", not starting with ".".',
+      'Connection name "a/b": expected a folder name of letters, digits, ".", "_" and "-", not starting with "."',
     ),
   );
 });

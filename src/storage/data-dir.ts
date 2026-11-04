@@ -4,9 +4,8 @@ import { isAbsolute, join } from "node:path";
 import { z } from "zod";
 
 import { type Env, readEnv } from "../config/env.ts";
+import { folderName } from "../conversation/state.ts";
 import { isMissing } from "./files.ts";
-
-const safeName = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/;
 
 export function readDataDir(env: Env = process.env): string {
   return readEnv(
@@ -40,11 +39,11 @@ export async function checkWritable(dir: string): Promise<void> {
   }
 }
 
-/** Throws unless `name` can be one folder name: no separators, no leading dot. */
 export function checkFolderName(name: string, what: string): void {
-  if (!safeName.test(name)) {
+  const result = folderName.safeParse(name);
+  if (!result.success) {
     throw new Error(
-      `${what} ${JSON.stringify(name)} cannot be a folder name. Use letters, digits, ".", "_" and "-", not starting with ".".`,
+      `${what} ${JSON.stringify(name)}: ${result.error.issues[0]?.message}`,
     );
   }
 }
@@ -65,7 +64,10 @@ export async function listChatFolders(
 async function subfolders(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
   return entries
-    .filter((entry) => entry.isDirectory() && safeName.test(entry.name))
+    .filter(
+      (entry) =>
+        entry.isDirectory() && folderName.safeParse(entry.name).success,
+    )
     .map((entry) => entry.name)
     .toSorted();
 }

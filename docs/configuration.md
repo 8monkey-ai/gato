@@ -18,11 +18,28 @@ Timeouts and other time spans use the duration format. Their names do not have a
 
 ## Variables
 
-| Variable         | Default         | Description                                                                                                                                                                                                                                                              |
-| ---------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `GATO_DATA_DIR`  | none (required) | Absolute path of the data directory. It must exist and be writable at startup; otherwise startup stops. Gato never uses a different directory. See [Data directory](#data-directory).                                                                                    |
-| `GATO_LOG_LEVEL` | `info`          | One of `fatal`, `error`, `warn`, `info`, `debug`, `trace`, `silent`.                                                                                                                                                                                                     |
-| `GATO_TIMEZONE`  | `UTC`           | IANA time zone name, for example `Asia/Kuala_Lumpur`. Offsets such as `+08:00` are not valid. Case does not matter: `asia/kuala_lumpur` gives `Asia/Kuala_Lumpur`. Sets today's date, calendar-month windows and operating hours. It does not change stored event times. |
+| Variable                | Default         | Description                                                                                                                                                                                                                                                              |
+| ----------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GATO_DATA_DIR`         | none (required) | Absolute path of the data directory. It must exist and be writable at startup; otherwise startup stops. Gato never uses a different directory. See [Data directory](#data-directory).                                                                                    |
+| `GATO_PORT`             | `3000`          | TCP port of the HTTP server that receives channel notifications. `0` selects a free port.                                                                                                                                                                                |
+| `GATO_SHUTDOWN_TIMEOUT` | `30s`           | Duration. On SIGTERM or SIGINT, Gato stops accepting new work and waits this long for open work to finish, then ends. It ends with code 0 when all work finished and code 1 when the time ran out. Saved work stays in the data directory.                               |
+| `GATO_LOG_LEVEL`        | `info`          | One of `fatal`, `error`, `warn`, `info`, `debug`, `trace`, `silent`.                                                                                                                                                                                                     |
+| `GATO_TIMEZONE`         | `UTC`           | IANA time zone name, for example `Asia/Kuala_Lumpur`. Offsets such as `+08:00` are not valid. Case does not matter: `asia/kuala_lumpur` gives `Asia/Kuala_Lumpur`. Sets today's date, calendar-month windows and operating hours. It does not change stored event times. |
+
+## Channel connections
+
+Each channel kind has one variable that holds its connections as a JSON object. Each key is a connection name; each value holds the settings of that connection:
+
+```
+GATO_<KIND>_CONNECTIONS={"<name>":{...settings...},"<other name>":{...}}
+```
+
+- When the variable is unset or empty, the channel kind is disabled. It then needs no credentials or services.
+- A connection name is also a folder name in the data directory. It contains only letters, digits, `.`, `_` and `-`, and does not start with `.`.
+- Each connection name is unique across all channel kinds.
+- Each connection receives notifications at `/<kind>/<name>` on the HTTP server, for example `POST /telegram/main`.
+
+An error names the variable and the path of the problem, for example `GATO_TELEGRAM_CONNECTIONS.main.botToken: Required`.
 
 ## Data directory
 

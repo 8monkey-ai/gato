@@ -10,7 +10,7 @@ const base = {
   dedupKey: z.string().min(1).optional(),
 };
 
-const role = z.enum(["customer", "operator", "workflow", "agent"]);
+export const role = z.enum(["customer", "operator", "workflow", "agent"]);
 export type Role = z.infer<typeof role>;
 
 const delivery = z.enum([
@@ -28,17 +28,21 @@ export const ownerKind = z.enum(["agent", "human", "unassigned"]);
 export const ownerSource = z.enum(["channel", "local"]);
 export const chatStatus = z.enum(["open", "closed"]);
 
+export const sender = z.object({
+  id: z.string().optional(),
+  name: z.string().optional(),
+  known: z.boolean(),
+});
+
+export const textPart = z.object({ kind: z.literal("text"), text: z.string() });
+
 const message = z.object({
   type: z.literal("message"),
   ...base,
   messageId: z.string().min(1),
   role,
-  sender: z.object({
-    id: z.string().optional(),
-    name: z.string().optional(),
-    known: z.boolean(),
-  }),
-  parts: z.array(z.object({ kind: z.literal("text"), text: z.string() })),
+  sender,
+  parts: z.array(textPart),
   delivery,
   externalId: z.string().optional(),
   internalTrigger: z.enum(["nudge", "review"]).optional(),

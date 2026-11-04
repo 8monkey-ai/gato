@@ -62,10 +62,14 @@ export function readEnv<T extends z.ZodType>(
 ): z.output<T> {
   const raw = env[name] === "" ? undefined : env[name];
   const result = schema.safeParse(raw, {
-    error: (issue) =>
-      issue.code === "invalid_type" && issue.input === undefined
-        ? "Required"
-        : undefined,
+    error: (issue) => {
+      if (issue.code === "invalid_type" && issue.input === undefined) {
+        return "Required";
+      }
+      // Zod reports a bad record key only as "Invalid key in record"; the key schema says why.
+      if (issue.code === "invalid_key") return issue.issues[0]?.message;
+      return undefined;
+    },
   });
   if (result.success) return result.data;
   throw new Error(
