@@ -63,17 +63,21 @@ type Start = {
   beforeRun?: () => unknown;
 };
 
+// An aborted run stops admission after the native state loads and before it writes the record.
 async function admitted(
   s: Scheduler,
   ref: ChatRef,
   { trigger, needsReconciled }: Start,
+  signal: AbortSignal,
 ) {
   try {
     if (!(await s.reconcile(ref)) && needsReconciled) return false;
+    if (signal.aborted) return false;
     const state = await s.controls.state(ref);
     if (s.store.isDamaged(ref) || !mayAnswer(state, s.policy)) return false;
     if (trigger !== "review" || latestVisibleIsCustomer(state.view))
       return true;
+    if (signal.aborted) return false;
     await s.controls.note(ref, {
       by: "system",
       kind: "skip",
@@ -93,8 +97,8 @@ async function execute(
   run: Run,
 ): Promise<TurnEnd> {
   const { trigger, beforeRun } = start;
-  if (!(await admitted(s, ref, start))) return "skipped";
   const { signal } = run.controller;
+  if (!(await admitted(s, ref, start, signal))) return "skipped";
   if (signal.aborted)
     return signal.reason === "interrupted" ? "superseded" : "interrupted";
   try {

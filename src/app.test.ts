@@ -159,7 +159,7 @@ test("health reports readiness while the app runs", async () => {
     connections: [{ id: "fake", started: true, healthy: true }],
     mcpServers: [],
     models: "not checked",
-    nudges: { reconciledChats: 0, unreconciledChats: 0 },
+    nudges: { reconciledChats: 0, unreconciledChats: 0, unconfiguredChats: 0 },
   });
   expect((await app.fetch(new Request("http://gato/unknown"))).status).toBe(
     404,
@@ -196,7 +196,9 @@ test("a second app on the same data folder fails because of the lock", async () 
   const { app } = await startApp();
   await expect(
     createApp({ env: env(), provider: () => new MockLanguageModelV4(), log }),
-  ).rejects.toThrow(`Data folder ${dataDir} is in use by process`);
+  ).rejects.toThrow(
+    `Data folder ${dataDir} is in use by ${os.hostname()}:${process.pid}`,
+  );
   await app.stop();
 });
 

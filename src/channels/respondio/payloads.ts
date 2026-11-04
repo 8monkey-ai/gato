@@ -29,6 +29,12 @@ const attachment = z.looseObject({
   description: z.string().nullish(),
 });
 
+// Fields that only add detail to a message: a shape that differs drops the field, not the whole webhook.
+const lenient = <T extends z.ZodType>(schema: T) =>
+  schema.nullish().catch(undefined);
+const lenientList = <T extends z.ZodType>(item: T) =>
+  lenient(z.array(item.optional().catch(undefined)));
+
 const content = z.looseObject({
   type: z.string(),
   text: z.string().nullish(),
@@ -38,25 +44,20 @@ const content = z.looseObject({
   latitude: z.number().nullish(),
   longitude: z.number().nullish(),
   address: z.string().nullish(),
-  attachments: z.array(attachment).nullish(),
-  title: z.string().nullish(),
-  subtitle: z.string().nullish(),
-  replies: z.array(z.string()).nullish(),
-  buttons: z.array(z.looseObject({ text: z.string().nullish() })).nullish(),
-  template: z
-    .looseObject({
-      name: z.string().nullish(),
-      components: z
-        .array(
-          z.looseObject({
-            type: z.string().nullish(),
-            text: z.string().nullish(),
-          }),
-        )
-        .nullish(),
-    })
-    .nullish(),
-  story: attachment.nullish(),
+  attachments: lenientList(attachment),
+  title: lenient(z.string()),
+  subtitle: lenient(z.string()),
+  replies: lenientList(z.string()),
+  buttons: lenientList(z.looseObject({ text: lenient(z.string()) })),
+  template: lenient(
+    z.looseObject({
+      name: lenient(z.string()),
+      components: lenientList(
+        z.looseObject({ type: lenient(z.string()), text: lenient(z.string()) }),
+      ),
+    }),
+  ),
+  story: lenient(attachment),
 });
 
 const envelope = { event_id: z.string(), contact: contactSchema };

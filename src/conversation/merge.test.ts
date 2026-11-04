@@ -86,6 +86,9 @@ const merge = (store: Awaited<ReturnType<typeof setup>>, target = into) =>
         aborts.push(`${r.chatId}:${reason}`);
         return Promise.resolve();
       },
+      resumeTurn: () => {
+        throw new Error("no resume expected");
+      },
     },
     from,
     target,
@@ -148,9 +151,10 @@ test("a merge stops the source turn, closes the old chat and refuses a second me
   expect(aborts).toEqual(["old:merged"]);
 });
 
-test("the old chat is closed while its turn stops, and a failed copy reopens it", async () => {
+test("the old chat is closed while its turn stops, and a failed abort reopens it without a new turn", async () => {
   const store = await setup();
   const markerDuringAbort: (string | undefined)[] = [];
+  const resumed: string[] = [];
   const failing = mergeChats(
     {
       store,
@@ -158,6 +162,7 @@ test("the old chat is closed while its turn stops, and a failed copy reopens it"
         markerDuringAbort.push(await store.readTextFile(r, "merged-into"));
         throw new Error("abort failed");
       },
+      resumeTurn: (r) => resumed.push(r.chatId),
     },
     from,
     into,
@@ -165,4 +170,29 @@ test("the old chat is closed while its turn stops, and a failed copy reopens it"
   await expect(failing).rejects.toThrow("abort failed");
   expect(markerDuringAbort).toEqual(["new\n"]);
   expect(await store.fileExists(from, "merged-into")).toBe(false);
+  expect(resumed).toEqual([]);
+});
+
+test("a failed copy after the source turn stopped reopens the old chat and asks for a turn on its pending input", async () => {
+  const store = await setup();
+  const resumed: string[] = [];
+  let markerAtResume = Promise.resolve(true);
+  const failing = mergeChats(
+    {
+      store: {
+        ...store,
+        withChat: () => Promise.reject(new Error("disk full")),
+      },
+      abortTurn: () => Promise.resolve(),
+      resumeTurn: (r) => {
+        markerAtResume = store.fileExists(r, "merged-into");
+        resumed.push(r.chatId);
+      },
+    },
+    from,
+    into,
+  );
+  await expect(failing).rejects.toThrow("disk full");
+  expect(resumed).toEqual(["old"]);
+  expect(await markerAtResume).toBe(false);
 });

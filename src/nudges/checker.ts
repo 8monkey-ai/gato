@@ -28,6 +28,8 @@ type Deps = {
   >;
   reconciler: ReturnType<typeof createReconciler>;
   connection: (connectionId: string) => ChannelConnection;
+  // A chat folder can outlive the configuration of its connection.
+  hasConnection: (connectionId: string) => boolean;
   settings: Pick<Settings, "nudges" | "ownershipPolicy" | "timeZone">;
   log: Logger;
   now: () => Date;
@@ -118,6 +120,7 @@ async function nudge(d: Deps, ref: ChatRef) {
 
 // Decides again inside the action slot, because the chat can change while it waits for one.
 async function act(d: Deps, check: Check, ref: ChatRef) {
+  if (check.stopped()) return;
   const state = await d.controls.state(ref);
   const action = await dueAction(d, ref, state, () => exemptLabelState(d, ref));
   if (!action || check.stopped()) return;
@@ -136,10 +139,12 @@ function noticeLocalChange(d: Deps, check: Check, ref: ChatRef, state: State) {
 
 const reconciled = (d: Deps, check: Check, ref: ChatRef) =>
   d.reconciler.isReconciled(ref) ||
-  check.limit(() =>
-    d.reconciler.reconcile(ref, (previous, current) =>
-      d.scheduler.stateChanged(ref, previous, current),
-    ),
+  check.limit(async () =>
+    check.stopped()
+      ? false
+      : d.reconciler.reconcile(ref, (previous, current) =>
+          d.scheduler.stateChanged(ref, previous, current),
+        ),
   );
 
 async function checkChat(d: Deps, check: Check, ref: ChatRef) {
@@ -162,11 +167,13 @@ const checkAll = (d: Deps, check: Check) =>
   );
 
 function readiness(d: Deps, lastCheckAt: string | undefined) {
-  const refs = healthyChats(d.store);
+  const all = healthyChats(d.store);
+  const refs = all.filter((ref) => d.hasConnection(ref.connectionId));
   const reconciledChats = refs.filter(d.reconciler.isReconciled).length;
   return {
     reconciledChats,
     unreconciledChats: refs.length - reconciledChats,
+    unconfiguredChats: all.length - refs.length,
     lastCheckAt,
   };
 }

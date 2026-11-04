@@ -124,3 +124,38 @@ test("maps email attachments by type or media type", () => {
     ],
   });
 });
+
+test("records a message whose optional detail fields have an unexpected shape", () => {
+  expect(
+    contentOf({
+      type: "quick_reply",
+      title: "Options",
+      replies: ["Good", { title: "Bad" }],
+    }),
+  ).toEqual({ text: "Options\nGood", attachments: [] });
+  expect(
+    contentOf({
+      type: "card",
+      title: { en: "Card" },
+      subtitle: "Sale",
+      buttons: "Buy",
+    }),
+  ).toEqual({ text: "Sale", attachments: [] });
+  expect(
+    contentOf({
+      type: "whatsapp_template",
+      template: { name: "promo", components: [7, { type: "body", text: 1 }] },
+    }).text,
+  ).toBe("[template promo]");
+  expect(
+    contentOf({
+      type: "email",
+      subject: "Docs",
+      attachments: [{ fileName: "no-url.pdf" }, { url: "https://cdn.test/a" }],
+    }).attachments,
+  ).toMatchObject([{ source: "https://cdn.test/a" }]);
+  expect(contentOf({ type: "story_reply", story: "gone" })).toEqual({
+    text: "[story reply]",
+    attachments: [],
+  });
+});

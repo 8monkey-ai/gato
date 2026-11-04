@@ -75,3 +75,27 @@ test("abort stops the running turn with its reason and drops the queued turn", a
     ["customer", "merged"],
   ]);
 });
+
+test("a run stopped while its native state loads writes no skip note", async () => {
+  let releaseFetch: () => void = () => {};
+  const held = new Promise<void>((resolve) => (releaseFetch = resolve));
+  let fetches = 0;
+  const { store, scheduler, calls } = await setup(
+    [ownedByAgent, visible("m1", "agent", "2026-11-04T10:00:00.000Z")],
+    {
+      native: true,
+      fetchState: async () => {
+        fetches++;
+        await held;
+        return { owner: "agent", open: true };
+      },
+    },
+  );
+  scheduler.stateChanged(ref, state("none"), state("agent"));
+  while (fetches === 0) await Bun.sleep(1);
+  const stopped = scheduler.stop(0);
+  releaseFetch();
+  await stopped;
+  expect(calls).toEqual([]);
+  expect((await store.load(ref)).notes).toEqual([]);
+});

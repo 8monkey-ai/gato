@@ -33,7 +33,9 @@ that is lost with the container.
 The process runs as user `bun` (uid 1000), so that user must be able to write the mounted folder. Give the
 folder to uid 1000 (`chown -R 1000:1000 /srv/gato/data`), or run the container as the owner of the folder
 with `--user "$(id -u):$(id -g)"`. Only one process can use a data folder at a time: the harness keeps a lock
-file `.gato.lock` in it. Run one container for each country.
+file `.gato.lock` in it with the hostname and process id of its holder. The harness takes over a lock from
+a process on the same host that has stopped. It refuses a lock from another host: make sure that no other
+instance uses the folder, then delete the lock file. Run one container for each country.
 
 At startup the harness checks the configuration, the data folder, the instructions, the summary prompt, the
 model ids, and the MCP servers. If a check fails, it writes one error line to standard output and stops with
@@ -309,10 +311,10 @@ curl -X POST -H "Authorization: Bearer $GATO_OPS_TOKEN" \
 ```
 
 The `/health` body contains `ready`, `storage`, `damagedChats`, `connections` (with `started` and
-`healthy`), `mcpServers`,
-`models` (`verified`, `unverified` or `not checked`) and `nudges` (reconciled and unreconciled chats, time of
-the last check). A respond.io chat is reconciled after the harness has read its assignment from respond.io
-once since startup. Nudges start only for reconciled chats.
+`healthy`), `mcpServers`, `models` (`verified`, `unverified` or `not checked`) and `nudges` (reconciled and
+unreconciled chats, `unconfiguredChats` for chat folders of a connection that is no longer configured, and the
+time of the last check). A respond.io chat is reconciled after the harness has read its assignment from
+respond.io once since startup. Nudges start only for reconciled chats.
 
 Logs are JSON lines on standard output. Tokens, keys, message text, phone numbers and e-mail addresses are
 redacted.

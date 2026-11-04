@@ -47,7 +47,11 @@ function operatorRoutes(
       retryFailedNudges({ ...deps, scheduler, log }, since),
     merge: (connectionId, fromChatId, intoChatId) =>
       mergeChats(
-        { store, abortTurn: scheduler.abort },
+        {
+          store,
+          abortTurn: scheduler.abort,
+          resumeTurn: scheduler.customerMessage,
+        },
         { connectionId, chatId: fromChatId },
         { connectionId, chatId: intoChatId },
       ),
@@ -142,6 +146,7 @@ export function wireServices(core: Core) {
     scheduler,
     reconciler,
     connection,
+    hasConnection: (id) => core.connections.has(id),
     settings,
     log,
     now,

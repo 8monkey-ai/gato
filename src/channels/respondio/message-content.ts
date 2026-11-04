@@ -53,8 +53,8 @@ function location(content: Content) {
 function template({ template }: Content) {
   const name = template?.name ? `[template ${template.name}]` : "[template]";
   const body = (template?.components ?? [])
-    .filter((component) => component.type?.toLowerCase() === "body")
-    .map((component) => component.text);
+    .filter((component) => component?.type?.toLowerCase() === "body")
+    .map((component) => component?.text);
   return joined([name, ...body], "\n");
 }
 
@@ -74,7 +74,9 @@ const mappers: Record<string, (content: Content) => MappedContent> = {
   }),
   email: (content) => ({
     text: joined([content.subject, content.message], "\n\n"),
-    attachments: (content.attachments ?? []).map((file) => toAttachment(file)),
+    attachments: (content.attachments ?? [])
+      .filter((file) => file !== undefined)
+      .map((file) => toAttachment(file)),
   }),
   location: (content) => textOnly(location(content)),
   quick_reply: (content) =>
@@ -85,7 +87,7 @@ const mappers: Record<string, (content: Content) => MappedContent> = {
         [
           content.title,
           content.subtitle,
-          ...(content.buttons ?? []).map((button) => button.text),
+          ...(content.buttons ?? []).map((button) => button?.text),
         ],
         "\n",
       ),

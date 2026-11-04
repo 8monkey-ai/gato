@@ -27,6 +27,7 @@ test("agent activity at minute 6 gives no nudge at minute 34 and one nudge at mi
   expect(checker.readiness()).toEqual({
     reconciledChats: 1,
     unreconciledChats: 0,
+    unconfiguredChats: 0,
     lastCheckAt: "2026-11-04T10:35:00.000Z",
   });
 });
@@ -161,4 +162,70 @@ test("a stopped checker starts no check, and a running check finishes before set
   await checker.checkOnce();
   expect(runs).toEqual([]);
   expect(await notes(store)).toEqual([]);
+});
+
+test("after stop, a chat that waits for a slot reads no labels and takes no action", async () => {
+  await seed();
+  await seed({ connectionId: "tg", chatId: "7" });
+  let releaseLabels: () => void = () => {};
+  const held = new Promise<void>((resolve) => (releaseLabels = resolve));
+  let labelReads = 0;
+  const { store, checker, runs } = await setup(channel(), {
+    concurrency: 1,
+    wrap: (c) => ({
+      ...c,
+      readLabels: async () => {
+        labelReads++;
+        await held;
+        return [];
+      },
+    }),
+  });
+  at(13 * 60 + 45);
+  const running = checker.checkOnce();
+  while (labelReads === 0) await Bun.sleep(1);
+  checker.stop();
+  releaseLabels();
+  await running;
+  expect(labelReads).toBe(1);
+  expect(runs).toEqual([]);
+  expect(await notes(store)).toEqual([]);
+  expect(await notes(store, { connectionId: "tg", chatId: "7" })).toEqual([]);
+});
+
+test("after stop, a chat that waits for a slot fetches no native state", async () => {
+  await seed();
+  await seed({ connectionId: "tg", chatId: "7" });
+  let releaseFetch: () => void = () => {};
+  const held = new Promise<void>((resolve) => (releaseFetch = resolve));
+  const fetched: string[] = [];
+  const connection = channel({
+    assignment: {
+      fetchState: async (chatId) => {
+        fetched.push(chatId);
+        await held;
+        return { owner: "agent", open: true };
+      },
+    },
+  });
+  const { checker } = await setup(connection, { concurrency: 1 });
+  const running = checker.checkOnce();
+  while (fetched.length === 0) await Bun.sleep(1);
+  checker.stop();
+  releaseFetch();
+  await running;
+  expect(fetched.length).toBe(1);
+});
+
+test("readiness counts a chat of a connection that is no longer configured and skips it", async () => {
+  await seed();
+  await seed({ connectionId: "old", chatId: "9" });
+  const { checker } = await setup();
+  await checker.checkOnce();
+  expect(checker.readiness()).toEqual({
+    reconciledChats: 1,
+    unreconciledChats: 0,
+    unconfiguredChats: 1,
+    lastCheckAt: "2026-11-04T10:00:00.000Z",
+  });
 });

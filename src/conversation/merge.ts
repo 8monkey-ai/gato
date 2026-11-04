@@ -20,6 +20,8 @@ type Copy = { store: Store; from: ChatRef; into: ChatRef };
 type Deps = {
   store: Store;
   abortTurn: (ref: ChatRef, reason: string) => Promise<unknown>;
+  // Asks for a turn in a chat whose customer input still awaits an answer.
+  resumeTurn: (ref: ChatRef) => void;
 };
 
 async function copyAttachment(
@@ -68,7 +70,7 @@ async function refuseReason(store: Store, from: ChatRef, into: ChatRef) {
 // Copies the record only; past actions are not replayed and copied messages create no new work.
 // The source chat is obsolete, so its running turn stops before the copy.
 export async function mergeChats(
-  { store, abortTurn }: Deps,
+  { store, abortTurn, resumeTurn }: Deps,
   from: ChatRef,
   into: ChatRef,
 ) {
@@ -76,11 +78,14 @@ export async function mergeChats(
   if (refused) throw new Error(refused);
   // The marker closes the source first, so no new turn starts there during the copy.
   await store.writeTextFile(from, "merged-into", `${into.chatId}\n`);
+  let aborted = false;
   try {
     await abortTurn(from, "merged");
+    aborted = true;
     await copyHistory(store, from, into);
   } catch (error) {
     await store.removeFile(from, "merged-into");
+    if (aborted && (await store.load(from)).hasPendingInput) resumeTurn(from);
     throw error;
   }
 }

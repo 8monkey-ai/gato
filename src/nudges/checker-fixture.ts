@@ -126,9 +126,14 @@ export async function setup(connection = channel(), options: Options = {}) {
     timeZone: "UTC",
     nudges: { ...nudgeSettings, concurrency: options.concurrency ?? 4 },
   };
-  const deps = { store, controls, connection: () => connection, log, now };
+  const lookup = (id: string) => {
+    if (id !== "tg") throw new Error(`Unknown connection: ${id}`);
+    return connection;
+  };
+  const deps = { store, controls, connection: lookup, log, now };
   const checker = createNudgeChecker({
     ...deps,
+    hasConnection: (id) => id === "tg",
     scheduler: fake.scheduler,
     reconciler: createReconciler(deps),
     settings,

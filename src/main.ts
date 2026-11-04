@@ -9,19 +9,12 @@ const log = createLogger();
 async function main() {
   const app = await createApp({ env: process.env, log });
   const server = Bun.serve({ port: app.port, fetch: app.fetch });
-  try {
-    await app.start();
-  } catch (error) {
-    await server.stop();
-    await app.stop();
-    throw error;
-  }
-  log.info("server.listening", { port: server.port });
   const shutdown = async (signal: string) => {
     log.info("app.stopping", { signal });
     await server.stop();
     await app.stop();
   };
+  // Installed before start, so a signal during startup still stops the app cleanly.
   for (const signal of ["SIGTERM", "SIGINT"] as const)
     process.once(signal, () => {
       shutdown(signal).then(
@@ -32,6 +25,14 @@ async function main() {
         },
       );
     });
+  try {
+    await app.start();
+  } catch (error) {
+    await server.stop();
+    await app.stop();
+    throw error;
+  }
+  log.info("server.listening", { port: server.port });
 }
 
 main().catch((error: unknown) => {
