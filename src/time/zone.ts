@@ -39,6 +39,13 @@ export function minutesOfDay(at: number, zone: string): number {
   return time.hour * 60 + time.minute;
 }
 
+/** Local date, time to the second, and UTC offset, e.g. "2024-04-01 01:30:00 +08:00". */
+export function localDateTime(at: number, zone: string): string {
+  const time = zoned(at, zone);
+  const local = time.toPlainDateTime().toString({ smallestUnit: "second" });
+  return `${local.replace("T", " ")} ${time.offset}`;
+}
+
 function zoned(at: number, zone: string): Temporal.ZonedDateTime {
   return Temporal.Instant.fromEpochMilliseconds(at).toZonedDateTimeISO(zone);
 }

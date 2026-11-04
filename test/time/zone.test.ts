@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   calendarMonthBefore,
   localDate,
+  localDateTime,
   minutesOfDay,
   readTimeZone,
 } from "../../src/time/zone.ts";
@@ -54,4 +55,12 @@ describe("zone helpers", () => {
       calendarMonthBefore(Date.UTC(2024, 2, 30, 17, 30), "Asia/Kuala_Lumpur"),
     ).toBe(Date.UTC(2024, 1, 28, 17, 30));
   });
+});
+
+test("localDateTime shows local time to the second with the offset", () => {
+  const at = Date.UTC(2024, 2, 31, 17, 30, 5, 900);
+  expect(localDateTime(at, "Asia/Kuala_Lumpur")).toBe(
+    "2024-04-01 01:30:05 +08:00",
+  );
+  expect(localDateTime(at, "UTC")).toBe("2024-03-31 17:30:05 +00:00");
 });
