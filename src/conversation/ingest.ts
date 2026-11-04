@@ -1,0 +1,144 @@
+import { randomUUID } from "node:crypto";
+
+import type { InboundEvent, InboundSink } from "../channels/channel.ts";
+import type { Logger } from "../log.ts";
+import type { ChatView } from "../record/projection.ts";
+import type { ChatRef, Owner } from "../record/types.ts";
+import type { ChatSession, ChatStore } from "../storage/chat-store.ts";
+import type { Controls } from "./controls.ts";
+
+type EventOf<K extends InboundEvent["kind"]> = Extract<
+  InboundEvent,
+  { kind: K }
+>;
+type FollowUp = () => unknown;
+
+const echoWindowMs = 10 * 60_000;
+
+function unconfirmedPartWithText(
+  view: ChatView,
+  text: string | undefined,
+  now: Date,
+) {
+  return view.messages.find(
+    (m) =>
+      m.author.role === "agent" &&
+      (m.delivery === "pending" || m.delivery === "uncertain") &&
+      m.platformId === undefined &&
+      text !== undefined &&
+      m.text === text &&
+      now.getTime() - Date.parse(m.sentAt) <= echoWindowMs,
+  );
+}
+
+async function recordMessage(
+  session: ChatSession,
+  event: EventOf<"message">,
+  now: Date,
+) {
+  const { message, eventId } = event;
+  const view = session.view();
+  const sentAt = message.sentAt.toISOString();
+  const known = view.messageIdByPlatformId.get(message.platformId);
+  const isAgent = message.author.role === "agent";
+  const echoOf = known ?? unconfirmedPartWithText(view, message.text, now)?.id;
+  if (isAgent && echoOf) {
+    await session.append([
+      {
+        type: "message-update",
+        messageId: echoOf,
+        delivery: "sent",
+        sentAt,
+        platformId: message.platformId,
+        eventId,
+      },
+    ]);
+    return false;
+  }
+  if (known) return false;
+  await session.append([
+    {
+      type: "message",
+      message: {
+        id: randomUUID(),
+        platformId: message.platformId,
+        author: message.author,
+        sentAt,
+        text: message.text,
+        attachments: message.attachments.map((a, i) => ({
+          id: `a${i + 1}`,
+          ...a,
+        })),
+        delivery: "observed",
+      },
+      eventId,
+    },
+  ]);
+  return message.author.role === "customer";
+}
+
+type Context = {
+  store: ChatStore;
+  controls: Pick<Controls, "state">;
+  log: Logger;
+  now: () => Date;
+  onCustomerMessage: (ref: ChatRef) => unknown;
+  onOwnershipChange: (ref: ChatRef, previous: Owner, owner: Owner) => unknown;
+};
+
+async function recordState(
+  ctx: Context,
+  ref: ChatRef,
+  session: ChatSession,
+  event: EventOf<"ownership" | "status">,
+): Promise<FollowUp | undefined> {
+  const previous = (await ctx.controls.state(ref)).owner;
+  const eventAt = event.at.toISOString();
+  const { eventId } = event;
+  await session.append([
+    event.kind === "ownership"
+      ? {
+          type: "ownership",
+          owner: event.owner,
+          assigneeId: event.assigneeId,
+          eventAt,
+          eventId,
+        }
+      : { type: "status", open: event.open, eventAt, eventId },
+  ]);
+  const { owner } = await ctx.controls.state(ref);
+  return owner === previous
+    ? undefined
+    : () => ctx.onOwnershipChange(ref, previous, owner);
+}
+
+async function record(
+  ctx: Context,
+  ref: ChatRef,
+  session: ChatSession,
+  event: InboundEvent,
+): Promise<FollowUp | undefined> {
+  if (session.view().seenEventIds.has(event.eventId)) return undefined;
+  if (event.kind !== "message") return recordState(ctx, ref, session, event);
+  const isNewCustomerMessage = await recordMessage(session, event, ctx.now());
+  return isNewCustomerMessage ? () => ctx.onCustomerMessage(ref) : undefined;
+}
+
+export function createIngest(ctx: Context) {
+  return {
+    sinkFor:
+      (connectionId: string): InboundSink =>
+      async (event) => {
+        const ref = { connectionId, chatId: event.chatId };
+        const followUp = await ctx.store.withChat(ref, (session) =>
+          record(ctx, ref, session, event),
+        );
+        if (!followUp) return;
+        void Promise.resolve()
+          .then(followUp)
+          .catch((error: unknown) =>
+            ctx.log.error("ingest.follow_up_failed", { ...ref, error }),
+          );
+      },
+  };
+}

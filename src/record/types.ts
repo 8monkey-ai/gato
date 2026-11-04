@@ -76,6 +76,7 @@ export type EntryBody =
       messageId: string;
       attachmentId: string;
       file?: string;
+      mediaType?: string;
       retrievalError?: string;
       preparation?: Preparation;
     }

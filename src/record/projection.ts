@@ -65,7 +65,11 @@ function applyAttachmentUpdate(state: State, e: EntryOf<"attachment-update">) {
     .get(e.messageId)
     ?.attachments.find((a) => a.id === e.attachmentId);
   if (!attachment) return;
-  if (e.file) attachment.file = e.file;
+  if (e.file) {
+    attachment.file = e.file;
+    delete attachment.retrievalError;
+  }
+  if (e.mediaType) attachment.mediaType = e.mediaType;
   if (e.retrievalError) attachment.retrievalError = e.retrievalError;
   if (e.preparation) attachment.preparation = e.preparation;
 }
