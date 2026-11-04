@@ -12,7 +12,8 @@ import { createIngest } from "./ingest.ts";
 
 let dataDir = "";
 const ref = { connectionId: "rio", chatId: "42" };
-const log = createLogger({}, () => {});
+let logLines: string[] = [];
+const log = createLogger({}, (line) => logLines.push(line));
 const now = () => new Date("2026-11-04T10:15:00.000Z");
 
 const message = (
@@ -64,8 +65,10 @@ async function setup(native = false) {
       retrievals.push(r.chatId);
       return Promise.reject(new Error("download failed"));
     },
-    onOwnershipChange: (_r, previous, owner) =>
-      ownerChanges.push(`${previous}->${owner}`),
+    onStateChange: (_r, previous, current) =>
+      ownerChanges.push(
+        `${previous.owner}/${previous.open}->${current.owner}/${current.open}`,
+      ),
   }).sinkFor("rio");
   const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
   return { store, sink, customerTurns, ownerChanges, retrievals, settle };
@@ -78,12 +81,13 @@ async function agentPart(
     delivery: "pending" | "uncertain";
     sentAt: string;
   },
+  id = "m1",
 ) {
   await store.append(ref, [
     {
       type: "message",
       message: {
-        id: "m1",
+        id,
         author: { role: "agent" },
         text: "Hello",
         attachments: [],
@@ -95,6 +99,7 @@ async function agentPart(
 
 beforeEach(async () => {
   dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "gato-ingest-"));
+  logLines = [];
 });
 afterEach(() => fs.rm(dataDir, { recursive: true, force: true }));
 
@@ -229,7 +234,7 @@ test("an older ownership event is recorded but does not change the owner", async
   const view = await store.load(ref);
   expect(view.lastSeq).toBe(2);
   expect(view.ownership?.owner).toBe("agent");
-  expect(ownerChanges).toEqual(["none->agent"]);
+  expect(ownerChanges).toEqual(["none/true->agent/true"]);
 });
 
 test("a new message with attachments requests retrieval without waiting for it", async () => {
@@ -246,4 +251,59 @@ test("a new message with attachments requests retrieval without waiting for it",
   await settle();
   expect(retrievals).toEqual(["42", "42"]);
   expect(customerTurns).toEqual(["42", "42"]);
+});
+
+test("an echo prefers a pending part, then the newest part with equal text", async () => {
+  const { store, sink } = await setup();
+  const at = (minute: string) => `2026-11-04T10:${minute}:00.000Z`;
+  await agentPart(store, { delivery: "uncertain", sentAt: at("09") }, "u1");
+  await agentPart(store, { delivery: "pending", sentAt: at("06") }, "p1");
+  await agentPart(store, { delivery: "pending", sentAt: at("07") }, "p2");
+  const echo = (eventId: string, platformId: string) =>
+    sink(message(eventId, platformId, { role: "agent" }, at("10")));
+  await echo("e1", "x1");
+  await echo("e2", "x2");
+  await echo("e3", "x3");
+  const view = await store.load(ref);
+  expect(view.messages.map((m) => [m.id, m.platformId])).toEqual([
+    ["u1", "x3"],
+    ["p1", "x2"],
+    ["p2", "x1"],
+  ]);
+});
+
+test("reopening a chat reports the state change", async () => {
+  const { sink, ownerChanges, settle } = await setup(true);
+  const status = (eventId: string, open: boolean): InboundEvent => ({
+    kind: "status",
+    chatId: "42",
+    eventId,
+    at: new Date(`2026-11-04T10:0${eventId.slice(1)}:00.000Z`),
+    open,
+  });
+  await sink(status("e1", false));
+  await sink(status("e2", true));
+  await settle();
+  expect(ownerChanges).toEqual([
+    "none/true->none/false",
+    "none/false->none/true",
+  ]);
+});
+
+test("each new message is logged without its text", async () => {
+  const { sink } = await setup();
+  await sink(message("e1", "p1", { role: "customer" }));
+  await sink(message("e1", "p1", { role: "customer" }));
+  const accepted = logLines.filter((l) => l.includes('"message.accepted"'));
+  expect(accepted.length).toBe(1);
+  expect(JSON.parse(accepted[0] ?? "{}")).toMatchObject({
+    level: "info",
+    connectionId: "rio",
+    chatId: "42",
+    messageId: expect.any(String) as unknown,
+    platformId: "p1",
+    eventId: "e1",
+    role: "customer",
+  });
+  expect(logLines.join("")).not.toContain("Hello");
 });

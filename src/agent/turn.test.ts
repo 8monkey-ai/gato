@@ -104,6 +104,14 @@ test("shutdown interrupts the turn", async () => {
   expect(await turnEnd()).toEqual([["interrupted", "shutdown"]]);
 });
 
+test("a merge interrupts the turn with the merge as the reason", async () => {
+  const controller = new AbortController();
+  const { runTurn, onSend } = setup(blockedAfterFirstPart);
+  onSend.push(() => controller.abort("merged"));
+  expect(await runTurn(ref, "customer", controller.signal)).toBe("interrupted");
+  expect(await turnEnd()).toEqual([["interrupted", "merged"]]);
+});
+
 test("a reply without text is skipped with a private note", async () => {
   const { runTurn } = setup(stream([finish("stop")]));
   expect(await runTurn(ref, "customer", signal())).toBe("skipped");
@@ -116,6 +124,16 @@ test("a reply without text is skipped with a private note", async () => {
 test("a paused chat is not eligible and the model is not called", async () => {
   await fs.writeFile(path.join(dirs().dataDir, "tg/42/paused"), "");
   const { runTurn, model } = setup(textStep("Hi."));
+  expect(await runTurn(ref, "customer", signal())).toBe("skipped");
+  expect(model.doStreamCalls).toHaveLength(0);
+  expect(await turnEnd()).toEqual([["skipped", "not eligible"]]);
+});
+
+test("a paused chat is not eligible under the unrestricted policy", async () => {
+  await fs.writeFile(path.join(dirs().dataDir, "tg/42/paused"), "");
+  const { runTurn, model } = setup(textStep("Hi."), {
+    GATO_OWNERSHIP_POLICY: "unrestricted",
+  });
   expect(await runTurn(ref, "customer", signal())).toBe("skipped");
   expect(model.doStreamCalls).toHaveLength(0);
   expect(await turnEnd()).toEqual([["skipped", "not eligible"]]);

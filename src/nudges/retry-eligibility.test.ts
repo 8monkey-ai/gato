@@ -5,12 +5,11 @@ import { retryEligible } from "./retry-eligibility.ts";
 const attemptAt = new Date("2026-11-04T10:00:00Z");
 const eligible = {
   attemptAt,
-  open: true,
-  agentOwned: true,
+  mayAnswer: true,
   substantiveMessageTimes: [new Date("2026-11-04T09:59:00Z")],
 };
 
-test("open, agent-owned, no message after the attempt: eligible", () => {
+test("may be answered, no message after the attempt: eligible", () => {
   expect(retryEligible(eligible)).toBe(true);
 });
 
@@ -27,10 +26,6 @@ test("a message at the attempt time: eligible", () => {
   ).toBe(true);
 });
 
-test("closed: not eligible", () => {
-  expect(retryEligible({ ...eligible, open: false })).toBe(false);
-});
-
-test("not agent-owned: not eligible", () => {
-  expect(retryEligible({ ...eligible, agentOwned: false })).toBe(false);
+test("may not be answered: not eligible", () => {
+  expect(retryEligible({ ...eligible, mayAnswer: false })).toBe(false);
 });

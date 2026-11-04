@@ -51,13 +51,32 @@ beforeEach(async () => {
 });
 afterEach(() => fs.rm(dataDir, { recursive: true, force: true }));
 
-test("the chat overview counts agent parts and shows no message text", async () => {
+const note = (kind: "nudge" | "nudge-failed" | "expiry"): NewEntry => ({
+  type: "note",
+  by: "system",
+  kind,
+  text: "private words",
+});
+
+test("the chat overview shows states and times and no message text", async () => {
+  let clock = new Date("2026-11-04T10:01:00.000Z");
   const store = await openChatStore(dataDir, {
     timeZone: "UTC",
     log,
-    now: () => new Date("2026-11-04T10:01:00.000Z"),
+    now: () => clock,
   });
-  await store.append({ connectionId: "tg", chatId: "42" }, entries);
+  const ref = { connectionId: "tg", chatId: "42" };
+  await store.append(ref, entries);
+  for (const [minute, kind] of [
+    ["02", "nudge"],
+    ["03", "nudge-failed"],
+    ["04", "nudge"],
+    ["05", "expiry"],
+  ] as const) {
+    clock = new Date(`2026-11-04T10:${minute}:00.000Z`);
+    await store.append(ref, [note(kind)]);
+  }
+  await store.writeTextFile(ref, "paused", "Ana handles this\n");
   const controls = createControls({
     store,
     connection: () => ({}) as ChannelConnection,
@@ -70,10 +89,15 @@ test("the chat overview counts agent parts and shows no message text", async () 
     {
       connectionId: "tg",
       chatId: "42",
-      owner: "agent",
+      owner: "human",
       open: true,
+      paused: true,
       pendingInput: true,
       damaged: false,
+      latestCustomerAt: "2026-11-04T10:00:00.000Z",
+      lastNudgeAt: "2026-11-04T10:04:00.000Z",
+      lastNudgeFailedAt: "2026-11-04T10:03:00.000Z",
+      expiredAt: "2026-11-04T10:05:00.000Z",
       latestTurn: {
         trigger: "customer",
         startedAt: "2026-11-04T10:01:00.000Z",
@@ -82,4 +106,25 @@ test("the chat overview counts agent parts and shows no message text", async () 
       agentParts: { failed: 1, pending: 0, uncertain: 0 },
     },
   ]);
+});
+
+test("an expiry before the latest customer message is not shown", async () => {
+  let clock = new Date("2026-11-04T09:00:00.000Z");
+  const store = await openChatStore(dataDir, {
+    timeZone: "UTC",
+    log,
+    now: () => clock,
+  });
+  const ref = { connectionId: "tg", chatId: "42" };
+  await store.append(ref, [note("expiry")]);
+  clock = new Date("2026-11-04T10:01:00.000Z");
+  await store.append(ref, entries);
+  const controls = createControls({
+    store,
+    connection: () => ({}) as ChannelConnection,
+    labels: { handoff: "h", outOfScope: "o", error: "e", expired: "x" },
+    log,
+  });
+  const [chat] = await inspectChats({ store, controls });
+  expect(chat?.expiredAt).toBeUndefined();
 });

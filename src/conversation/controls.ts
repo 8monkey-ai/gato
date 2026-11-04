@@ -40,7 +40,7 @@ async function state(ctx: Context, ref: ChatRef) {
     ctx.store.fileExists(ref, "merged-into"),
   ]);
   const current = chatState(view, { native, paused, closed });
-  return { ...current, open: current.open && !merged, view };
+  return { ...current, open: current.open && !merged, paused, view };
 }
 
 async function note(ctx: Context, ref: ChatRef, body: NoteBody) {

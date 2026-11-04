@@ -12,10 +12,15 @@ type Store = Pick<
   | "withChat"
   | "fileExists"
   | "writeTextFile"
+  | "removeFile"
   | "attachmentPath"
   | "saveAttachment"
 >;
 type Copy = { store: Store; from: ChatRef; into: ChatRef };
+type Deps = {
+  store: Store;
+  abortTurn: (ref: ChatRef, reason: string) => Promise<unknown>;
+};
 
 async function copyAttachment(
   { store, from, into }: Copy,
@@ -45,6 +50,7 @@ async function copyMessage(
     ),
     delivery: message.delivery,
     error: message.error,
+    mergedFromChatId: message.mergedFromChatId ?? copy.from.chatId,
   };
 }
 
@@ -60,9 +66,26 @@ async function refuseReason(store: Store, from: ChatRef, into: ChatRef) {
 }
 
 // Copies the record only; past actions are not replayed and copied messages create no new work.
-export async function mergeChats(store: Store, from: ChatRef, into: ChatRef) {
+// The source chat is obsolete, so its running turn stops before the copy.
+export async function mergeChats(
+  { store, abortTurn }: Deps,
+  from: ChatRef,
+  into: ChatRef,
+) {
   const refused = await refuseReason(store, from, into);
   if (refused) throw new Error(refused);
+  // The marker closes the source first, so no new turn starts there during the copy.
+  await store.writeTextFile(from, "merged-into", `${into.chatId}\n`);
+  try {
+    await abortTurn(from, "merged");
+    await copyHistory(store, from, into);
+  } catch (error) {
+    await store.removeFile(from, "merged-into");
+    throw error;
+  }
+}
+
+async function copyHistory(store: Store, from: ChatRef, into: ChatRef) {
   const source = await store.load(from);
   await store.withChat(into, async (session) => {
     const target = session.view();
@@ -81,5 +104,4 @@ export async function mergeChats(store: Store, from: ChatRef, into: ChatRef) {
       { type: "merge", fromChatId: from.chatId },
     ]);
   });
-  await store.writeTextFile(from, "merged-into", `${into.chatId}\n`);
 }

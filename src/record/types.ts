@@ -40,6 +40,7 @@ export type ChatMessage = {
   delivery: Delivery;
   turnId?: string;
   error?: string;
+  mergedFromChatId?: string; // set on a message copied by a merge: the chat it came from
 };
 
 export type Owner = "agent" | "human" | "none";

@@ -123,3 +123,12 @@ test("retries run eligible chats, record new failures and isolate errors", async
   const kinds = (await store.load(chat("a"))).notes.map((n) => n.kind);
   expect(kinds).toEqual(["nudge", "nudge-failed", "nudge-failed"]);
 });
+
+test("a paused chat is not eligible for a retry under any policy", async () => {
+  const { store, record, deps } = await setup();
+  await seedFailure(record, chat("p"));
+  await store.writeTextFile(chat("p"), "paused", "Ana handles this\n");
+  const unrestricted = { ...deps, policy: "unrestricted" as const };
+  const found = await failedNudges(unrestricted, new Date(T));
+  expect(found.map((f) => [f.ref.chatId, f.eligible])).toEqual([["p", false]]);
+});

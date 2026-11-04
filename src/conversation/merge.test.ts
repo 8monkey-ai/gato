@@ -77,17 +77,36 @@ beforeEach(async () => {
 });
 afterEach(() => fs.rm(dataDir, { recursive: true, force: true }));
 
+const aborts: string[] = [];
+const merge = (store: Awaited<ReturnType<typeof setup>>, target = into) =>
+  mergeChats(
+    {
+      store,
+      abortTurn: (r, reason) => {
+        aborts.push(`${r.chatId}:${reason}`);
+        return Promise.resolve();
+      },
+    },
+    from,
+    target,
+  );
+
 test("a merge keeps chronology, copies attachments and skips known platform ids", async () => {
   const store = await setup();
-  await mergeChats(store, from, into);
+  await merge(store);
   const view = await store.load(into);
   expect(
-    view.messages.map((m) => [m.platformId, m.author.role, m.text]),
+    view.messages.map((m) => [
+      m.platformId,
+      m.author.role,
+      m.text,
+      m.mergedFromChatId,
+    ]),
   ).toEqual([
-    ["p1", "customer", undefined],
-    ["p2", "customer", "hello"],
-    ["p-dup", "customer", "dup"],
-    ["p3", "agent", "hello"],
+    ["p1", "customer", undefined, "old"],
+    ["p2", "customer", "hello", undefined],
+    ["p-dup", "customer", "dup", undefined],
+    ["p3", "agent", "hello", "old"],
   ]);
   const [copied] = view.messages;
   expect(copied?.id).not.toBe("m1");
@@ -108,9 +127,11 @@ test("a merge keeps chronology, copies attachments and skips known platform ids"
   expect(view.merges.map((m) => m.fromChatId)).toEqual(["old"]);
 });
 
-test("a merge closes the old chat and refuses a second merge", async () => {
+test("a merge stops the source turn, closes the old chat and refuses a second merge", async () => {
+  aborts.length = 0;
   const store = await setup();
-  await mergeChats(store, from, into);
+  await merge(store);
+  expect(aborts).toEqual(["old:merged"]);
   expect(await store.readTextFile(from, "merged-into")).toBe("new\n");
   const controls = createControls({
     store,
@@ -120,10 +141,28 @@ test("a merge closes the old chat and refuses a second merge", async () => {
   });
   expect((await controls.state(from)).open).toBe(false);
   expect((await controls.state(into)).open).toBe(true);
-  await expect(mergeChats(store, from, into)).rejects.toThrow(
-    "Chat old is already merged",
-  );
+  await expect(merge(store)).rejects.toThrow("Chat old is already merged");
   await expect(
-    mergeChats(store, from, { connectionId: "tg", chatId: "new" }),
+    merge(store, { connectionId: "tg", chatId: "new" }),
   ).rejects.toThrow("Both chats must belong to the same connection");
+  expect(aborts).toEqual(["old:merged"]);
+});
+
+test("the old chat is closed while its turn stops, and a failed copy reopens it", async () => {
+  const store = await setup();
+  const markerDuringAbort: (string | undefined)[] = [];
+  const failing = mergeChats(
+    {
+      store,
+      abortTurn: async (r) => {
+        markerDuringAbort.push(await store.readTextFile(r, "merged-into"));
+        throw new Error("abort failed");
+      },
+    },
+    from,
+    into,
+  );
+  await expect(failing).rejects.toThrow("abort failed");
+  expect(markerDuringAbort).toEqual(["new\n"]);
+  expect(await store.fileExists(from, "merged-into")).toBe(false);
 });

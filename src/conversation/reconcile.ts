@@ -1,10 +1,11 @@
 import type { ChannelConnection } from "../channels/channel.ts";
-import { chatState } from "../conversation/ownership.ts";
 import type { Logger } from "../log.ts";
 import type { ChatView } from "../record/projection.ts";
 import type { ChatRef, Owner } from "../record/types.ts";
 import { chatKey } from "../storage/chat-files.ts";
 import type { ChatStore, NewEntry } from "../storage/chat-store.ts";
+import type { Controls } from "./controls.ts";
+import { type ChatState, sameState } from "./ownership.ts";
 
 type Fetched = { owner: Owner; assigneeId?: string; open: boolean };
 
@@ -26,41 +27,41 @@ function differences(view: ChatView, fetched: Fetched, eventAt: string) {
   return entries;
 }
 
-const ownerOf = (view: ChatView) =>
-  chatState(view, { native: true, paused: false, closed: false }).owner;
-
+// Fetches the native state of a chat once per process and records what differs.
 export function createReconciler(deps: {
   store: Pick<ChatStore, "withChat">;
+  controls: Pick<Controls, "state">;
   connection: (connectionId: string) => ChannelConnection;
   log: Logger;
   now: () => Date;
-  onOwnershipChange: (ref: ChatRef, previous: Owner, owner: Owner) => unknown;
 }) {
   const reconciled = new Set<string>();
   const isReconciled = (ref: ChatRef) =>
     !deps.connection(ref.connectionId).assignment ||
     reconciled.has(chatKey(ref));
-  const reconcile = async (ref: ChatRef) => {
+  const reconcile = async (
+    ref: ChatRef,
+    onChange?: (previous: ChatState, current: ChatState) => unknown,
+  ) => {
     const assignment = deps.connection(ref.connectionId).assignment;
     if (!assignment || reconciled.has(chatKey(ref))) return true;
     try {
-      const fetched = await assignment.fetchState(ref.chatId);
+      // The fetched state is at least as new as the time before the request.
       const eventAt = deps.now().toISOString();
-      const [previous, owner] = await deps.store.withChat(
+      const fetched = await assignment.fetchState(ref.chatId);
+      const [previous, current] = await deps.store.withChat(
         ref,
         async (session) => {
-          const before = session.view();
-          const after = await session.append(
-            differences(before, fetched, eventAt),
-          );
-          return [ownerOf(before), ownerOf(after)] as const;
+          const before = await deps.controls.state(ref);
+          await session.append(differences(session.view(), fetched, eventAt));
+          return [before, await deps.controls.state(ref)] as const;
         },
       );
       reconciled.add(chatKey(ref));
-      if (previous !== owner) deps.onOwnershipChange(ref, previous, owner);
+      if (!sameState(previous, current)) onChange?.(previous, current);
       return true;
     } catch (error) {
-      deps.log.warn("nudge.reconcile_failed", { ...ref, error });
+      deps.log.warn("reconcile.failed", { ...ref, error });
       return false;
     }
   };

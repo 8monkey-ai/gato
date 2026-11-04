@@ -1,136 +1,17 @@
-import { afterEach, beforeEach, expect, test } from "bun:test";
-import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
+import { expect, test } from "bun:test";
 
-import type { ChannelConnection } from "../channels/channel.ts";
-import { type Controls, createControls } from "../conversation/controls.ts";
-import { createLogger } from "../log.ts";
-import type { ChatRef, EntryBody, TurnEnd } from "../record/types.ts";
-import { openChatStore } from "../storage/chat-store.ts";
-import { createNudgeChecker } from "./checker.ts";
+import {
+  at,
+  channel,
+  logged,
+  notes,
+  ref,
+  seed,
+  setup,
+  useCheckerFixture,
+} from "./checker-fixture.ts";
 
-const T = Date.parse("2026-11-04T10:00:00.000Z");
-const minute = 60_000;
-const ref = { connectionId: "tg", chatId: "42" };
-let dataDir = "";
-let clock = new Date(T);
-let logs: { level: string; event: string; chatId?: string }[] = [];
-const log = createLogger({}, (line) => {
-  logs.push(JSON.parse(line) as { level: string; event: string });
-});
-const settings = {
-  ownershipPolicy: "assigned" as const,
-  timeZone: "UTC",
-  nudges: {
-    enabled: true,
-    expiryEnabled: true,
-    checkIntervalMs: 300_000,
-    milestonesMs: [300_000, 2_100_000, 45_300_000, 45_900_000],
-    hours: { startMinutes: 0, endMinutes: 1440 },
-    prompt: "Nudge",
-    expiryAfterMs: 49_500_000,
-    expiryExemptLabel: "out-of-scope-unsolved",
-  },
-};
-
-const message = (
-  id: string,
-  role: "customer" | "agent",
-  offsetMinutes: number,
-): EntryBody => ({
-  type: "message",
-  message: {
-    id,
-    author: { role },
-    sentAt: new Date(T + offsetMinutes * minute).toISOString(),
-    text: id,
-    attachments: [],
-    delivery: role === "agent" ? "sent" : "observed",
-  },
-});
-
-function channel(extra: Partial<ChannelConnection> = {}): ChannelConnection {
-  return {
-    id: "tg",
-    maxTextLength: 4096,
-    supportsVideo: false,
-    start: () => Promise.resolve(),
-    stop: () => Promise.resolve(),
-    send: () => Promise.resolve({ status: "sent", sentAt: new Date() }),
-    fetchAttachment: () => Promise.reject(new Error("no file")),
-    ...extra,
-  };
-}
-
-async function setup(
-  connection = channel(),
-  options: {
-    outcome?: TurnEnd | "busy";
-    wrap?: (controls: Controls) => Controls;
-  } = {},
-) {
-  const { outcome = "completed", wrap = (c: Controls) => c } = options;
-  const store = await openChatStore(dataDir, {
-    timeZone: "UTC",
-    log,
-    now: () => clock,
-  });
-  const labels = { handoff: "h", outOfScope: "o", error: "e", expired: "x" };
-  const controls = createControls({
-    store,
-    connection: () => connection,
-    labels,
-    log,
-  });
-  const runs: { chatId: string; trigger: string; nudgeNotes: number }[] = [];
-  const ownerChanges: string[] = [];
-  const scheduler = {
-    busy: () => false,
-    ownershipChange: (r: ChatRef, previous: string, owner: string) =>
-      ownerChanges.push(`${r.chatId}:${previous}->${owner}`),
-    runExclusive: async (r: ChatRef, trigger: string) => {
-      const notes = (await store.load(r)).notes;
-      runs.push({
-        chatId: r.chatId,
-        trigger,
-        nudgeNotes: notes.filter((n) => n.kind === "nudge").length,
-      });
-      return outcome;
-    },
-  };
-  const checker = createNudgeChecker({
-    store,
-    controls: wrap(controls),
-    scheduler,
-    connection: () => connection,
-    settings,
-    log,
-    now: () => clock,
-  });
-  return { store, checker, runs, ownerChanges };
-}
-
-const at = (minutes: number) => {
-  clock = new Date(T + minutes * minute);
-};
-const notes = async (
-  store: Awaited<ReturnType<typeof openChatStore>>,
-  r: ChatRef = ref,
-) => (await store.load(r)).notes.map((n) => [n.by, n.kind, n.text]);
-
-beforeEach(async () => {
-  dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "gato-checker-"));
-  logs = [];
-  clock = new Date(T);
-});
-afterEach(() => fs.rm(dataDir, { recursive: true, force: true }));
-
-async function seed(r: ChatRef = ref) {
-  const store = await openChatStore(dataDir, { timeZone: "UTC", log });
-  await store.append(r, [message(`c-${r.chatId}`, "customer", 0)]);
-  await store.append(r, [message(`a-${r.chatId}`, "agent", 6)]);
-}
+useCheckerFixture();
 
 test("agent activity at minute 6 gives no nudge at minute 34 and one nudge at minute 35", async () => {
   await seed();
@@ -162,7 +43,7 @@ test("a failed nudge records a failure note and a busy chat records none", async
   const busy = await setup(channel(), { outcome: "busy" });
   at(12 * 60 + 36);
   await busy.checker.checkOnce();
-  expect((await notes(busy.store)).length).toBe(3);
+  expect((await notes(busy.store)).length).toBe(2);
 });
 
 test("a restarted checker does not repeat a committed nudge", async () => {
@@ -210,7 +91,7 @@ test("unavailable exemption labels skip expiry with a warning while nudges conti
   expect(runs.map((r) => r.trigger)).toEqual(["nudge"]);
   expect((await store.load(ref)).handoffs).toEqual([]);
   expect(
-    logs.filter((l) => l.event === "expiry.exemption_labels_unavailable")
+    logged().filter((l) => l.event === "expiry.exemption_labels_unavailable")
       .length,
   ).toBe(1);
 });
@@ -226,13 +107,13 @@ test("a native chat is skipped until its state is fetched once", async () => {
           : Promise.resolve({ owner: "agent", open: true }),
     },
   });
-  const { store, checker, runs, ownerChanges } = await setup(connection);
+  const { store, checker, runs, stateChanges } = await setup(connection);
   at(35);
   await checker.checkOnce();
   expect(runs).toEqual([]);
   expect(checker.readiness().unreconciledChats).toBe(1);
   await checker.checkOnce();
-  expect(ownerChanges).toEqual(["42:none->agent"]);
+  expect(stateChanges).toEqual(["42:none->agent"]);
   at(12 * 60 + 36);
   await checker.checkOnce();
   expect(fetches).toBe(2);
@@ -259,7 +140,9 @@ test("a failing chat does not stop the other chats", async () => {
   at(35);
   await checker.checkOnce();
   expect(runs.map((r) => r.chatId)).toEqual(["7"]);
-  expect(logs.filter((l) => l.event === "nudge.check_failed").length).toBe(1);
+  expect(logged().filter((l) => l.event === "nudge.check_failed").length).toBe(
+    1,
+  );
 });
 
 test("a stopped checker starts no check, and a running check finishes before settled resolves", async () => {

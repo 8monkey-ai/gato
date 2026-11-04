@@ -40,6 +40,14 @@ test("missing AGENTS.md fails the turn with an error handoff and no model call",
   expect(await labels()).toEqual([["handoff", "error"]]);
 });
 
+test("a failed turn in a closed chat makes no error handoff", async () => {
+  await fs.rm(path.join(dirs().skillsDir, "AGENTS.md"));
+  await fs.writeFile(path.join(dirs().dataDir, "tg/42/closed"), "");
+  const { runTurn } = setup(textStep("Hi."));
+  expect(await runTurn(ref, "customer", signal())).toBe("failed");
+  expect(await handoffs()).toEqual([]);
+});
+
 const failing = () => Promise.reject(new Error("Provider down"));
 
 test("a model error fails the turn with an error handoff", async () => {

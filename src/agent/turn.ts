@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { ChannelConnection } from "../channels/channel.ts";
 import type { Controls } from "../conversation/controls.ts";
-import { agentMayAnswer } from "../conversation/ownership.ts";
+import { mayAnswer } from "../conversation/ownership.ts";
 import type { createDelivery } from "../delivery/deliver.ts";
 import type { DeliveryResult } from "../delivery/sender.ts";
 import type { Logger } from "../log.ts";
@@ -149,8 +149,8 @@ async function run(turn: TurnRun, revision: Revision): Promise<TurnEnd> {
   const { deps } = turn;
   for (const problem of revision.problems)
     turn.log.warn("skills.problem", { problem });
-  const { owner, open } = await deps.controls.state(turn.ref);
-  if (!open || !agentMayAnswer(owner, deps.settings.ownershipPolicy)) {
+  const state = await deps.controls.state(turn.ref);
+  if (!mayAnswer(state, deps.settings.ownershipPolicy)) {
     await startTurn(turn, revision);
     const end: End = { outcome: "skipped", reason: "not eligible" };
     return finish(turn, { end, sentParts: 0 });

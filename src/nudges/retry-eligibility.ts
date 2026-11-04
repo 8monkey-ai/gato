@@ -1,13 +1,11 @@
 export function retryEligible(input: {
   attemptAt: Date;
-  open: boolean;
-  agentOwned: boolean;
+  mayAnswer: boolean;
   substantiveMessageTimes: Date[];
 }): boolean {
   const attemptAt = input.attemptAt.getTime();
   return (
-    input.open &&
-    input.agentOwned &&
+    input.mayAnswer &&
     !input.substantiveMessageTimes.some((at) => at.getTime() > attemptAt)
   );
 }

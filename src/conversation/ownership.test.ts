@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test";
 
 import { project } from "../record/projection.ts";
-import { agentMayAnswer, chatState } from "./ownership.ts";
+import { chatState, mayAnswer } from "./ownership.ts";
 
-test("each policy permits answers only for its owners", () => {
+test("each policy permits answers only for its owners of an open chat", () => {
   const table = (["assigned", "shared", "unrestricted"] as const).map(
     (policy) =>
       (["agent", "none", "human"] as const).map((owner) =>
-        agentMayAnswer(owner, policy),
+        mayAnswer({ owner, open: true, paused: false }, policy),
       ),
   );
   expect(table).toEqual([
@@ -15,6 +15,17 @@ test("each policy permits answers only for its owners", () => {
     [true, true, false],
     [true, true, true],
   ]);
+  const closed = { owner: "agent" as const, open: false, paused: false };
+  expect(mayAnswer(closed, "unrestricted")).toBe(false);
+});
+
+test("a paused chat may not be answered under any policy", () => {
+  const paused = { owner: "human" as const, open: true, paused: true };
+  expect(
+    (["assigned", "shared", "unrestricted"] as const).map((policy) =>
+      mayAnswer(paused, policy),
+    ),
+  ).toEqual([false, false, false]);
 });
 
 test("native assignment uses the recorded state, unassigned and open by default", () => {

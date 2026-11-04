@@ -120,6 +120,7 @@ that your operators and workflows send.
 | `GATO_NUDGES_ENABLED`       | `true`                  | Send nudges.                                        |
 | `GATO_EXPIRY_ENABLED`       | `true`                  | Expire inactive chats.                              |
 | `GATO_NUDGE_CHECK_INTERVAL` | `5m`                    | Time between checks.                                |
+| `GATO_NUDGE_CONCURRENCY`    | `4`                     | Most state fetches, nudges and expiries at once.    |
 | `GATO_NUDGE_MILESTONES`     | `5m,35m,12h35m,12h45m`  | Nudge times after the latest customer message.      |
 | `GATO_NUDGE_HOURS`          | `00:00-24:00`           | Hours in which nudges are permitted, `HH:MM-HH:MM`. |
 | `GATO_NUDGE_PROMPT`         | `Nudge`                 | Internal prompt that asks the agent to continue.    |
@@ -251,17 +252,17 @@ handoff. Each turn reads the checkout again, so updates apply to the next turn.
 Each chat has the folder `<GATO_DATA_DIR>/<connection id>/<chat id>/`. A chat id contains only letters, digits,
 `_` and `-` (1 to 128 characters). The adapters use the numeric respond.io contact id and the Telegram chat id.
 
-| File            | Content                                                                                         |
-| --------------- | ----------------------------------------------------------------------------------------------- |
-| `events.jsonl`  | The record: one JSON entry per line, append only. This is the source of truth.                  |
-| `chat.txt`      | Readable transcript, written again after each change.                                           |
-| `summary.txt`   | Latest contact summary: `Generated: <ISO time>`, a blank line, then the text.                   |
-| `attachments/`  | Original files of attachments.                                                                  |
-| `instructions/` | `<revision>.md`: repository instructions and skill catalogue of each revision that a turn used. |
-| `paused`        | Operator file. If it exists, a human owns the chat. The content is the reason.                  |
-| `closed`        | Operator file. If it exists, the chat is closed.                                                |
-| `labels.txt`    | Labels, one per line. The harness adds lines; operators can edit it.                            |
-| `merged-into`   | Written by a merge. Contains the id of the chat that received the history. The chat is closed.  |
+| File            | Content                                                                                                                                             |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `events.jsonl`  | The record: one JSON entry per line, append only. This is the source of truth.                                                                      |
+| `chat.txt`      | Readable transcript, written again after each change.                                                                                               |
+| `summary.txt`   | Latest contact summary: `Generated: <ISO time>`, a blank line, then the text.                                                                       |
+| `attachments/`  | Original files of attachments.                                                                                                                      |
+| `instructions/` | `<revision>.md`: repository instructions and skill catalogue of each revision that a turn used.                                                     |
+| `paused`        | Operator file. If it exists, a human owns the chat and the agent does not answer or nudge it under any ownership policy. The content is the reason. |
+| `closed`        | Operator file. If it exists, the chat is closed.                                                                                                    |
+| `labels.txt`    | Labels, one per line. The harness adds lines; operators can edit it.                                                                                |
+| `merged-into`   | Written by a merge. Contains the id of the chat that received the history. The chat is closed.                                                      |
 
 `paused`, `closed` and `labels.txt` apply only to connections without native assignment and labels (Telegram).
 respond.io keeps these in respond.io.
@@ -281,7 +282,9 @@ Pause a Telegram chat (the agent stops answering and nudging):
 echo "Ana handles this" > /srv/gato/data/tg/123456/paused
 ```
 
-Resume it: delete the `paused` file. Close and reopen work the same way with the `closed` file.
+Resume it: delete the `paused` file. Close and reopen work the same way with the `closed` file. The next nudge
+check sees the change: the agent then answers a waiting customer message, or records a note that no request
+waits.
 
 Endpoints (only when `GATO_OPS_TOKEN` is set):
 

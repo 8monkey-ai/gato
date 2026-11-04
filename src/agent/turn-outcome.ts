@@ -11,11 +11,11 @@ export function abortEnd(
   signal: AbortSignal,
   budgetSignal: AbortSignal,
 ): End | undefined {
-  // The scheduler aborts with "interrupted" for new customer input and with "shutdown" at shutdown.
+  // The scheduler aborts with "interrupted" for new customer input; other reasons such as "shutdown" stop the turn.
   if (signal.aborted)
     return signal.reason === "interrupted"
       ? { outcome: "superseded" }
-      : { outcome: "interrupted", reason: "shutdown" };
+      : { outcome: "interrupted", reason: String(signal.reason) };
   if (budgetSignal.aborted)
     return { outcome: "timed-out", reason: "time limit reached" };
   return undefined;

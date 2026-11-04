@@ -1,6 +1,6 @@
 import type { ChannelConnection } from "../channels/channel.ts";
 import type { Controls } from "../conversation/controls.ts";
-import { agentMayAnswer } from "../conversation/ownership.ts";
+import { mayAnswer } from "../conversation/ownership.ts";
 import type { Logger } from "../log.ts";
 import type {
   ChatRef,
@@ -68,8 +68,8 @@ export async function startTurn(
 async function errorHandoff(turn: Turn, end: End) {
   const { deps, ref, turnId } = turn;
   try {
-    const { owner } = await deps.controls.state(ref);
-    if (!agentMayAnswer(owner, deps.settings.ownershipPolicy)) return;
+    const state = await deps.controls.state(ref);
+    if (!mayAnswer(state, deps.settings.ownershipPolicy)) return;
     const reason = `The agent could not answer (${end.outcome}): ${end.reason ?? "no reason recorded"}`;
     await deps.controls.handoff(ref, { path: "error", reason, turnId });
   } catch (error) {

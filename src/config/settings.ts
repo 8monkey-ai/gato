@@ -141,6 +141,7 @@ function readNudges(env: EnvReader) {
     checkIntervalMs: env.duration("GATO_NUDGE_CHECK_INTERVAL", {
       default: "5m",
     }),
+    concurrency: env.int("GATO_NUDGE_CONCURRENCY", { default: 4 }),
     milestonesMs: env.custom(
       "GATO_NUDGE_MILESTONES",
       "a comma separated list of durations such as 5m,35m,12h35m",

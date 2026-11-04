@@ -1,8 +1,5 @@
 import type { Controls } from "../conversation/controls.ts";
-import {
-  agentMayAnswer,
-  type OwnershipPolicy,
-} from "../conversation/ownership.ts";
+import { mayAnswer, type OwnershipPolicy } from "../conversation/ownership.ts";
 import type { createScheduler } from "../conversation/scheduler.ts";
 import type { Logger } from "../log.ts";
 import type { ChatView } from "../record/projection.ts";
@@ -40,12 +37,11 @@ const substantiveMessageTimes = (view: ChatView) =>
 async function failedNudge(deps: Deps, ref: ChatRef, since: Date) {
   const failure = latestFailure(await deps.store.load(ref), since);
   if (!failure) return undefined;
-  const { owner, open, view } = await deps.controls.state(ref);
+  const state = await deps.controls.state(ref);
   const eligible = retryEligible({
     attemptAt: failure.attemptAt,
-    open,
-    agentOwned: agentMayAnswer(owner, deps.policy),
-    substantiveMessageTimes: substantiveMessageTimes(view),
+    mayAnswer: mayAnswer(state, deps.policy),
+    substantiveMessageTimes: substantiveMessageTimes(state.view),
   });
   return { ref, ...failure, eligible };
 }

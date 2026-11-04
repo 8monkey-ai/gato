@@ -56,7 +56,10 @@ function attachmentLine(a: Attachment): string {
 function messageLine(m: RecordedMessage): Line {
   const status =
     (deliveryNotes[m.delivery] ?? "") + (m.error ? ` error: ${m.error}` : "");
-  const text = `${authorName(m.author)}${status}: ${indent(m.text ?? "")}${m.attachments.map(attachmentLine).join("")}`;
+  const merged = m.mergedFromChatId
+    ? ` (merged from ${m.mergedFromChatId})`
+    : "";
+  const text = `${authorName(m.author)}${merged}${status}: ${indent(m.text ?? "")}${m.attachments.map(attachmentLine).join("")}`;
   return { time: m.sentAt, seq: m.seq, text };
 }
 

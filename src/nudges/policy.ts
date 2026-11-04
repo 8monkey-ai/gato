@@ -1,3 +1,5 @@
+import type { ChatView } from "../record/projection.ts";
+
 type NudgeInput = {
   now: Date;
   latestCustomerAt?: Date;
@@ -89,4 +91,15 @@ function minuteOfDay(date: Date, timeZone: string): number {
   const value = (type: string) =>
     Number(parts.find((part) => part.type === type)?.value);
   return value("hour") * 60 + value("minute");
+}
+
+// The latest expiry since the latest customer message; a new customer message ends the expiry.
+export function expiredAt(view: ChatView): string | undefined {
+  const latest = view.latestCustomerAt;
+  if (latest === undefined) return undefined;
+  return view.notes
+    .filter(
+      (n) => n.kind === "expiry" && Date.parse(n.at) >= Date.parse(latest),
+    )
+    .at(-1)?.at;
 }

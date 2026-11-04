@@ -61,6 +61,7 @@ const log: Entry[] = [
       text: "Earlier",
       attachments: [],
       delivery: "observed",
+      mergedFromChatId: "old",
     },
   },
 ];
@@ -68,7 +69,7 @@ const log: Entry[] = [
 test("renders a chronological transcript in the configured time zone", () => {
   expect(renderChat(project(log), "Asia/Manila")).toBe(
     [
-      "[2026-11-04 18:14:00 Asia/Manila] Operator (unknown): Earlier",
+      "[2026-11-04 18:14:00 Asia/Manila] Operator (unknown) (merged from old): Earlier",
       "[2026-11-04 18:15:00 Asia/Manila] Customer: Hello",
       "  there",
       "  [audio: voice.ogg -> attachments/m1-a1.ogg; transcript: hi]",

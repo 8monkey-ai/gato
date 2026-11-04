@@ -1,29 +1,44 @@
 import type { ChannelConnection } from "../channels/channel.ts";
 import type { Settings } from "../config/settings.ts";
 import type { Controls } from "../conversation/controls.ts";
-import { agentMayAnswer } from "../conversation/ownership.ts";
+import {
+  type ChatState,
+  mayAnswer,
+  sameState,
+} from "../conversation/ownership.ts";
+import type { createReconciler } from "../conversation/reconcile.ts";
 import type { createScheduler } from "../conversation/scheduler.ts";
 import type { Logger } from "../log.ts";
 import type { ChatView } from "../record/projection.ts";
 import type { ChatRef } from "../record/types.ts";
 import { isVisibleMessage } from "../record/visibility.ts";
+import { chatKey } from "../storage/chat-files.ts";
 import type { ChatStore } from "../storage/chat-store.ts";
 import { healthyChats } from "./chats.ts";
+import { createLimit } from "./limit.ts";
 import { recordNudgeOutcome } from "./outcome.ts";
-import { selectAction, withinHours } from "./policy.ts";
-import { createReconciler } from "./reconcile.ts";
+import { expiredAt, selectAction, withinHours } from "./policy.ts";
 
 type Deps = {
   store: ChatStore;
   controls: Pick<Controls, "state" | "note" | "handoff" | "readLabels">;
   scheduler: Pick<
     ReturnType<typeof createScheduler>,
-    "busy" | "runExclusive" | "ownershipChange"
+    "busy" | "runExclusive" | "stateChanged"
   >;
+  reconciler: ReturnType<typeof createReconciler>;
   connection: (connectionId: string) => ChannelConnection;
   settings: Pick<Settings, "nudges" | "ownershipPolicy" | "timeZone">;
   log: Logger;
   now: () => Date;
+};
+type State = Awaited<ReturnType<Controls["state"]>>;
+type LabelState = "present" | "absent" | "unknown";
+type Check = {
+  stopped: () => boolean;
+  // The last state seen per chat without native assignment, to notice when an operator resumes it.
+  localStates: Map<string, ChatState>;
+  limit: ReturnType<typeof createLimit>;
 };
 
 function agentActivity(view: ChatView) {
@@ -34,10 +49,7 @@ function agentActivity(view: ChatView) {
   return [...messages, ...notes].map((at) => new Date(at));
 }
 
-async function exemptLabelState(
-  d: Deps,
-  ref: ChatRef,
-): Promise<"present" | "absent" | "unknown"> {
+async function exemptLabelState(d: Deps, ref: ChatRef): Promise<LabelState> {
   try {
     const labels = await d.controls.readLabels(ref);
     return labels.includes(d.settings.nudges.expiryExemptLabel)
@@ -49,14 +61,14 @@ async function exemptLabelState(
   }
 }
 
-async function nudgeInput(d: Deps, ref: ChatRef, view: ChatView) {
+async function nudgeInput(
+  view: ChatView,
+  d: Deps,
+  exemptLabels: () => Promise<LabelState>,
+) {
   const latest = view.latestCustomerAt;
-  if (latest === undefined) return undefined;
+  if (latest === undefined || expiredAt(view) !== undefined) return undefined;
   const latestCustomerAt = new Date(latest);
-  const expired = view.notes.some(
-    (n) => n.kind === "expiry" && new Date(n.at) >= latestCustomerAt,
-  );
-  if (expired) return undefined;
   const now = d.now();
   const { nudges, timeZone } = d.settings;
   const expiryDue =
@@ -71,11 +83,22 @@ async function nudgeInput(d: Deps, ref: ChatRef, view: ChatView) {
     nudgesEnabled: nudges.enabled,
     expiryEnabled: nudges.expiryEnabled,
     // The policy ignores the label state before the threshold, so read labels only when expiry is due.
-    exemptLabelState: expiryDue
-      ? await exemptLabelState(d, ref)
-      : ("unknown" as const),
+    exemptLabelState: expiryDue ? await exemptLabels() : ("unknown" as const),
     withinPermittedHours: withinHours(now, nudges.hours, timeZone),
   };
+}
+
+async function dueAction(
+  d: Deps,
+  ref: ChatRef,
+  state: State,
+  exemptLabels: () => Promise<LabelState>,
+) {
+  if (!mayAnswer(state, d.settings.ownershipPolicy) || d.scheduler.busy(ref))
+    return undefined;
+  const input = await nudgeInput(state.view, d, exemptLabels);
+  const action = input && selectAction(input);
+  return action?.kind === "none" ? undefined : action;
 }
 
 async function expire(d: Deps, ref: ChatRef, elapsedMs: number) {
@@ -86,26 +109,47 @@ async function expire(d: Deps, ref: ChatRef, elapsedMs: number) {
 }
 
 async function nudge(d: Deps, ref: ChatRef) {
-  await d.controls.note(ref, { by: "agent", kind: "nudge", text: "Nudge" });
-  const outcome = await d.scheduler.runExclusive(ref, "nudge");
+  const outcome = await d.scheduler.runExclusive(ref, "nudge", {
+    beforeRun: () =>
+      d.controls.note(ref, { by: "agent", kind: "nudge", text: "Nudge" }),
+  });
   await recordNudgeOutcome(d.controls, ref, outcome);
 }
 
-type Check = {
-  reconcile: (ref: ChatRef) => Promise<boolean>;
-  stopped: () => boolean;
-};
-
-async function checkChat(d: Deps, check: Check, ref: ChatRef) {
-  if (!(await check.reconcile(ref))) return;
-  const { owner, open, view } = await d.controls.state(ref);
-  if (!open || !agentMayAnswer(owner, d.settings.ownershipPolicy)) return;
-  if (d.scheduler.busy(ref)) return;
-  const input = await nudgeInput(d, ref, view);
-  if (!input || check.stopped()) return;
-  const action = selectAction(input);
+// Decides again inside the action slot, because the chat can change while it waits for one.
+async function act(d: Deps, check: Check, ref: ChatRef) {
+  const state = await d.controls.state(ref);
+  const action = await dueAction(d, ref, state, () => exemptLabelState(d, ref));
+  if (!action || check.stopped()) return;
   if (action.kind === "expire") await expire(d, ref, action.elapsedMs);
   if (action.kind === "nudge") await nudge(d, ref);
+}
+
+function noticeLocalChange(d: Deps, check: Check, ref: ChatRef, state: State) {
+  if (d.connection(ref.connectionId).assignment) return;
+  const previous = check.localStates.get(chatKey(ref));
+  const { owner, open, paused } = state;
+  check.localStates.set(chatKey(ref), { owner, open, paused });
+  if (previous && !sameState(previous, state))
+    d.scheduler.stateChanged(ref, previous, state);
+}
+
+const reconciled = (d: Deps, check: Check, ref: ChatRef) =>
+  d.reconciler.isReconciled(ref) ||
+  check.limit(() =>
+    d.reconciler.reconcile(ref, (previous, current) =>
+      d.scheduler.stateChanged(ref, previous, current),
+    ),
+  );
+
+async function checkChat(d: Deps, check: Check, ref: ChatRef) {
+  if (!(await reconciled(d, check, ref))) return;
+  const state = await d.controls.state(ref);
+  noticeLocalChange(d, check, ref, state);
+  // Labels are read only in the slot; assuming no exemption here only lets a chat into the slot.
+  const absent = () => Promise.resolve<LabelState>("absent");
+  if (await dueAction(d, ref, state, absent))
+    await check.limit(() => act(d, check, ref));
 }
 
 const checkAll = (d: Deps, check: Check) =>
@@ -117,16 +161,26 @@ const checkAll = (d: Deps, check: Check) =>
     ),
   );
 
+function readiness(d: Deps, lastCheckAt: string | undefined) {
+  const refs = healthyChats(d.store);
+  const reconciledChats = refs.filter(d.reconciler.isReconciled).length;
+  return {
+    reconciledChats,
+    unreconciledChats: refs.length - reconciledChats,
+    lastCheckAt,
+  };
+}
+
 export function createNudgeChecker(d: Deps) {
-  const reconciler = createReconciler({
-    ...d,
-    onOwnershipChange: d.scheduler.ownershipChange,
-  });
   let running: Promise<void> | undefined;
   let stopped = false;
   let lastCheckAt: string | undefined;
   let timers: ReturnType<typeof setTimeout>[] = [];
-  const check = { reconcile: reconciler.reconcile, stopped: () => stopped };
+  const check: Check = {
+    stopped: () => stopped,
+    localStates: new Map(),
+    limit: createLimit(d.settings.nudges.concurrency),
+  };
   const runCheck = async () => {
     await checkAll(d, check);
     lastCheckAt = d.now().toISOString();
@@ -154,14 +208,6 @@ export function createNudgeChecker(d: Deps) {
       timers.forEach((timer) => clearTimeout(timer));
     },
     settled: () => running ?? Promise.resolve(),
-    readiness: () => {
-      const refs = healthyChats(d.store);
-      const reconciledChats = refs.filter(reconciler.isReconciled).length;
-      return {
-        reconciledChats,
-        unreconciledChats: refs.length - reconciledChats,
-        lastCheckAt,
-      };
-    },
+    readiness: () => readiness(d, lastCheckAt),
   };
 }

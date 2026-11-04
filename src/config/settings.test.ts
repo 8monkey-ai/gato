@@ -55,6 +55,7 @@ test("applies the documented delivery and nudge defaults", () => {
     enabled: true,
     expiryEnabled: true,
     checkIntervalMs: 300000,
+    concurrency: 4,
     milestonesMs: [300000, 2100000, 45300000, 45900000],
     hours: { startMinutes: 0, endMinutes: 1440 },
     prompt: "Nudge",
@@ -80,11 +81,13 @@ test("reads configured values", () => {
     GATO_NUDGE_HOURS: "08:30-20:00",
     GATO_NUDGE_MILESTONES: "1m, 2h",
     GATO_MCP_SERVERS: "crm,docs",
+    GATO_NUDGE_CONCURRENCY: "2",
   });
   expect(s.timeZone).toBe("Asia/Manila");
   expect(s.nudges.hours).toEqual({ startMinutes: 510, endMinutes: 1200 });
   expect(s.nudges.milestonesMs).toEqual([60000, 7200000]);
   expect(s.mcpServers).toEqual(["crm", "docs"]);
+  expect(s.nudges.concurrency).toBe(2);
 });
 
 test("reports every invalid variable in one error", () => {

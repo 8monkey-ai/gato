@@ -9,6 +9,7 @@ import type { Settings } from "../config/settings.ts";
 import { type Controls, createControls } from "../conversation/controls.ts";
 import { createIngest } from "../conversation/ingest.ts";
 import { mergeChats } from "../conversation/merge.ts";
+import { createReconciler } from "../conversation/reconcile.ts";
 import { createScheduler } from "../conversation/scheduler.ts";
 import { createDelivery } from "../delivery/deliver.ts";
 import type { Logger } from "../log.ts";
@@ -46,7 +47,7 @@ function operatorRoutes(
       retryFailedNudges({ ...deps, scheduler, log }, since),
     merge: (connectionId, fromChatId, intoChatId) =>
       mergeChats(
-        store,
+        { store, abortTurn: scheduler.abort },
         { connectionId, chatId: fromChatId },
         { connectionId, chatId: intoChatId },
       ),
@@ -77,9 +78,11 @@ const connectionLookup =
     return found;
   };
 
-export function wireServices(core: Core) {
+function agentServices(
+  core: Core,
+  connection: (id: string) => ChannelConnection,
+) {
   const { settings, store, log, now } = core;
-  const connection = connectionLookup(core);
   const controls = createControls({
     store,
     connection,
@@ -95,10 +98,28 @@ export function wireServices(core: Core) {
     skillsDir: settings.skillsDir,
     delivery: createDelivery({ store, settings: settings.delivery, log, now }),
   });
+  return { controls, retrieveAttachments, runTurn };
+}
+
+export function wireServices(core: Core) {
+  const { settings, store, log, now } = core;
+  const connection = connectionLookup(core);
+  const { controls, retrieveAttachments, runTurn } = agentServices(
+    core,
+    connection,
+  );
+  const reconciler = createReconciler({
+    store,
+    controls,
+    connection,
+    log,
+    now,
+  });
   const scheduler = createScheduler({
     store,
     controls,
     policy: settings.ownershipPolicy,
+    reconcile: reconciler.reconcile,
     runTurn,
     log,
   });
@@ -108,7 +129,7 @@ export function wireServices(core: Core) {
     log,
     now,
     onCustomerMessage: scheduler.customerMessage,
-    onOwnershipChange: scheduler.ownershipChange,
+    onStateChange: scheduler.stateChanged,
     onNewAttachments: retrievalAfterIngest(
       core,
       connection,
@@ -119,6 +140,7 @@ export function wireServices(core: Core) {
     store,
     controls,
     scheduler,
+    reconciler,
     connection,
     settings,
     log,

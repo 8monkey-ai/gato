@@ -1,16 +1,22 @@
 import type { Logger } from "../log.ts";
 import type { ChatView } from "../record/projection.ts";
-import type { ChatRef, Owner, TurnEnd, TurnTrigger } from "../record/types.ts";
+import type { ChatRef, TurnEnd, TurnTrigger } from "../record/types.ts";
 import { isVisibleMessage } from "../record/visibility.ts";
 import { chatKey } from "../storage/chat-files.ts";
 import type { ChatStore, NewEntry } from "../storage/chat-store.ts";
 import type { Controls } from "./controls.ts";
-import { agentMayAnswer, type OwnershipPolicy } from "./ownership.ts";
+import {
+  type ChatState,
+  mayAnswer,
+  type OwnershipPolicy,
+} from "./ownership.ts";
 
 type Run = {
   controller: AbortController;
   done: Promise<TurnEnd>;
   queued?: TurnTrigger;
+  // Set by abort: the chat is obsolete, so no queued turn follows.
+  final?: boolean;
 };
 
 const latestVisibleIsCustomer = (view: ChatView) =>
@@ -40,6 +46,8 @@ type Context = {
   store: ChatStore;
   controls: Pick<Controls, "state" | "note">;
   policy: OwnershipPolicy;
+  // Resolves false when the native state of the chat could not be fetched.
+  reconcile: (ref: ChatRef) => Promise<boolean>;
   runTurn: (
     ref: ChatRef,
     trigger: TurnTrigger,
@@ -48,13 +56,24 @@ type Context = {
   log: Logger;
 };
 type Scheduler = Context & { runs: Map<string, Run>; stopping: boolean };
+type Start = {
+  trigger: TurnTrigger;
+  // Replies fall back to the recorded state when the native state is unavailable; nudges do not.
+  needsReconciled: boolean;
+  beforeRun?: () => unknown;
+};
 
-async function admitted(s: Scheduler, ref: ChatRef, trigger: TurnTrigger) {
+async function admitted(
+  s: Scheduler,
+  ref: ChatRef,
+  { trigger, needsReconciled }: Start,
+) {
   try {
-    const { owner, open, view } = await s.controls.state(ref);
-    if (s.store.isDamaged(ref) || !open || !agentMayAnswer(owner, s.policy))
-      return false;
-    if (trigger !== "review" || latestVisibleIsCustomer(view)) return true;
+    if (!(await s.reconcile(ref)) && needsReconciled) return false;
+    const state = await s.controls.state(ref);
+    if (s.store.isDamaged(ref) || !mayAnswer(state, s.policy)) return false;
+    if (trigger !== "review" || latestVisibleIsCustomer(state.view))
+      return true;
     await s.controls.note(ref, {
       by: "system",
       kind: "skip",
@@ -70,15 +89,16 @@ async function admitted(s: Scheduler, ref: ChatRef, trigger: TurnTrigger) {
 async function execute(
   s: Scheduler,
   ref: ChatRef,
-  trigger: TurnTrigger,
+  start: Start,
   run: Run,
-  admit: () => Promise<boolean>,
 ): Promise<TurnEnd> {
-  if (!(await admit())) return "skipped";
+  const { trigger, beforeRun } = start;
+  if (!(await admitted(s, ref, start))) return "skipped";
   const { signal } = run.controller;
   if (signal.aborted)
     return signal.reason === "interrupted" ? "superseded" : "interrupted";
   try {
+    await beforeRun?.();
     return await s.runTurn(ref, trigger, signal);
   } catch (error) {
     s.log.error("scheduler.turn_failed", { ...ref, trigger, error });
@@ -86,27 +106,21 @@ async function execute(
   }
 }
 
-function launch(
-  s: Scheduler,
-  ref: ChatRef,
-  trigger: TurnTrigger,
-  admit: () => Promise<boolean>,
-) {
+function launch(s: Scheduler, ref: ChatRef, start: Start) {
   const run: Run = {
     controller: new AbortController(),
     done: Promise.resolve("skipped"),
   };
   s.runs.set(chatKey(ref), run);
-  run.done = execute(s, ref, trigger, run, admit).finally(() => {
+  run.done = execute(s, ref, start, run).finally(() => {
     s.runs.delete(chatKey(ref));
-    if (run.queued) startEligible(s, ref, run.queued);
+    if (run.queued && !run.final) startEligible(s, ref, run.queued);
   });
   return run.done;
 }
 
 function startEligible(s: Scheduler, ref: ChatRef, trigger: TurnTrigger) {
-  if (!s.stopping)
-    void launch(s, ref, trigger, () => admitted(s, ref, trigger));
+  if (!s.stopping) void launch(s, ref, { trigger, needsReconciled: false });
 }
 
 function customerMessage(s: Scheduler, ref: ChatRef) {
@@ -116,17 +130,31 @@ function customerMessage(s: Scheduler, ref: ChatRef) {
   run.controller.abort("interrupted");
 }
 
-function ownershipChange(
+// Gaining eligibility (assignment back to the agent, reopening, resuming) asks for a review.
+function stateChanged(
   s: Scheduler,
   ref: ChatRef,
-  previous: Owner,
-  owner: Owner,
+  previous: ChatState,
+  current: ChatState,
 ) {
-  if (agentMayAnswer(previous, s.policy) || !agentMayAnswer(owner, s.policy))
-    return;
+  if (mayAnswer(previous, s.policy) || !mayAnswer(current, s.policy)) return;
   const run = s.runs.get(chatKey(ref));
   if (run) run.queued ??= "review";
   else startEligible(s, ref, "review");
+}
+
+function runExclusive(s: Scheduler, ref: ChatRef, start: Start) {
+  if (s.stopping || s.runs.has(chatKey(ref)))
+    return Promise.resolve("busy" as const);
+  return launch(s, ref, start);
+}
+
+async function abort(s: Scheduler, ref: ChatRef, reason: string) {
+  const run = s.runs.get(chatKey(ref));
+  if (!run) return;
+  run.final = true;
+  run.controller.abort(reason);
+  await run.done;
 }
 
 async function recover(s: Scheduler) {
@@ -161,15 +189,16 @@ export function createScheduler(ctx: Context) {
   const s: Scheduler = { ...ctx, runs: new Map(), stopping: false };
   return {
     customerMessage: (ref: ChatRef) => customerMessage(s, ref),
-    ownershipChange: (ref: ChatRef, previous: Owner, owner: Owner) =>
-      ownershipChange(s, ref, previous, owner),
+    stateChanged: (ref: ChatRef, previous: ChatState, current: ChatState) =>
+      stateChanged(s, ref, previous, current),
+    // beforeRun runs once the chat is admitted, right before the turn.
     runExclusive: (
       ref: ChatRef,
       trigger: TurnTrigger,
+      options: { beforeRun?: () => unknown } = {},
     ): Promise<TurnEnd | "busy"> =>
-      s.stopping || s.runs.has(chatKey(ref))
-        ? Promise.resolve("busy")
-        : launch(s, ref, trigger, () => Promise.resolve(true)),
+      runExclusive(s, ref, { trigger, needsReconciled: true, ...options }),
+    abort: (ref: ChatRef, reason: string) => abort(s, ref, reason),
     recover: () => recover(s),
     stop: (graceMs: number) => stop(s, graceMs),
     busy: (ref: ChatRef) => s.runs.has(chatKey(ref)),
