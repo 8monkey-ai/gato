@@ -41,6 +41,23 @@ GATO_<KIND>_CONNECTIONS={"<name>":{...settings...},"<other name>":{...}}
 
 An error names the variable and the path of the problem, for example `GATO_TELEGRAM_CONNECTIONS.main.botToken: Required`.
 
+### Telegram
+
+`GATO_TELEGRAM_CONNECTIONS` holds the Telegram bot connections. Each connection is one bot:
+
+```
+GATO_TELEGRAM_CONNECTIONS={"main":{"botToken":"123456:ABC...","webhookSecret":"a-long-random-value","publicUrl":"https://gato.example.com"}}
+```
+
+| Setting          | Required | Description                                                                                                                                                                                                                                                                                                                     |
+| ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `botToken`       | yes      | The bot token from BotFather.                                                                                                                                                                                                                                                                                                   |
+| `webhookSecret`  | yes      | 1 to 256 characters from `A-Z`, `a-z`, `0-9`, `_` and `-`. Telegram sends it in the `X-Telegram-Bot-Api-Secret-Token` header. Gato answers 401 to a notification without it.                                                                                                                                                    |
+| `publicUrl`      | no       | HTTPS address at which Telegram reaches the Gato HTTP server, for example `https://gato.example.com`. When set, Gato registers the webhook `<publicUrl>/telegram/<name>` with the secret at each start. Startup stops if that fails. When not set, register the webhook yourself with `setWebhook` and the same `secret_token`. |
+| `requestTimeout` | no       | Duration, default `30s`. Gato stops waiting for a Telegram API call after this time. A message whose send timed out counts as uncertain and Gato does not send it again.                                                                                                                                                        |
+
+Gato records text messages from private chats. The chat folder is `<GATO_DATA_DIR>/<name>/<Telegram chat id>/`. Gato acknowledges and ignores messages from groups and channels, and other update types. It acknowledges a notification only after it saved the message; when the save fails, Gato answers 500 and Telegram sends the notification again.
+
 ## Data directory
 
 Gato keeps all conversation records in `GATO_DATA_DIR`, one folder per chat:

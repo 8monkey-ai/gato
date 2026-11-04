@@ -76,6 +76,22 @@ test("replaces circular references and keeps shared ones", () => {
   });
 });
 
+test("masks a bot token in any string, message and error", () => {
+  const { logger, lines } = capture();
+  const url = "https://api.telegram.org/bot123:AB-c_9/setWebhook";
+  logger.error({ request: { url } }, `calling ${url}`);
+  logger.error({ err: new Error(`fetch ${url} failed`) });
+  const masked = "https://api.telegram.org/bot[redacted]/setWebhook";
+  expect(lines[0]).toMatchObject({
+    request: { url: masked },
+    msg: `calling ${masked}`,
+  });
+  expect(lines[1]).toMatchObject({
+    err: { message: `fetch ${masked} failed` },
+  });
+  expect(JSON.stringify(lines)).not.toContain("AB-c_9");
+});
+
 test("level comes from GATO_LOG_LEVEL with info as default", () => {
   expect(capture().logger.level).toBe("info");
   expect(capture({ GATO_LOG_LEVEL: "warn" }).logger.level).toBe("warn");

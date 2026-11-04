@@ -45,6 +45,10 @@ export class FakeAdapter implements ChannelAdapter {
     this.#sink = undefined;
     return Promise.resolve();
   }
+
+  send() {
+    return Promise.resolve({ status: "sent" as const, externalId: "fake" });
+  }
 }
 
 export function fakeRegistration(

@@ -1,7 +1,7 @@
 import type { Server } from "bun";
 import { z } from "zod";
 
-import type { ChannelAdapter } from "../channel/adapter.ts";
+import { type ChannelAdapter, connectionPath } from "../channel/adapter.ts";
 import { type Env, integer, readEnv } from "../config/env.ts";
 import type { Logger } from "../log/logger.ts";
 
@@ -54,7 +54,7 @@ function mountRoutes(
   const routes: Record<string, Record<string, Handler>> = {};
   for (const adapter of adapters) {
     for (const route of adapter.routes()) {
-      const path = `/${adapter.kind}/${adapter.connection}${route.path}`;
+      const path = `${connectionPath(adapter)}${route.path}`;
       const methods = (routes[path] ??= {});
       if (methods[route.method]) {
         throw new Error(`Route ${route.method} ${path} is declared twice`);

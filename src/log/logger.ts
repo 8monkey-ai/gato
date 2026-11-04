@@ -25,6 +25,11 @@ export function createLogger(
     level: readEnv("GATO_LOG_LEVEL", level, env),
     serializers: { err: (value: unknown) => redact(value, new WeakSet()) },
     formatters: { log: redactRoot, bindings: redactRoot },
+    // Telegram puts the bot token in its API URLs, which can reach any message or error.
+    hooks: {
+      streamWrite: (line: string) =>
+        line.replaceAll(/bot\d+:[\w-]+/g, "bot[redacted]"),
+    },
   };
   return destination ? pino(options, destination) : pino(options);
 }
