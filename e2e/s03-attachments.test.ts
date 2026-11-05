@@ -49,10 +49,10 @@ function byModel(request: ModelRequest) {
   return { text: "Thanks" };
 }
 
-async function stored(chat: string) {
+async function stored(chat: string, type = "outcome") {
   return await waitFor(async () => {
     const entries = await readChat(f.app.dataDir, "tg", chat);
-    return entries.some((entry) => entry.type === "outcome") && entries;
+    return entries.some((entry) => entry.type === type) && entries;
   });
 }
 
@@ -126,7 +126,7 @@ test("§3 an empty preparation response is a processing failure; content is neve
   );
   await f.start({ IMAGE_MODEL: "test/vision" });
   f.telegram.customerMessage(1, photo);
-  const entries = await stored("1");
+  const entries = await stored("1", "error");
   expect(mainRequests(f.gateway)).toHaveLength(0);
   expect(f.telegram.sentTexts(1)).toHaveLength(0);
   expect(entries.find((entry) => entry.type === "outcome")?.text).toContain(
