@@ -1,5 +1,6 @@
 import type { OpenRouterProvider } from "@openrouter/ai-sdk-provider";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import type { ToolSet } from "ai";
 
 import { createAfterTurn } from "./agent/after-turn.ts";
 import type {
@@ -30,6 +31,7 @@ import { createTurns } from "./conversation/turns.ts";
 import { errorText, log } from "./log.ts";
 import type { Skills } from "./skills/catalogue.ts";
 import { createSkills } from "./skills/catalogue.ts";
+import { connectServers, readMcpServers } from "./tools/servers.ts";
 
 type Channels = Map<string, Channel>;
 
@@ -41,7 +43,12 @@ function preparationModels(settings: Settings, gateway: OpenRouterProvider) {
   return models;
 }
 
-function createRuntime(settings: Settings, channels: Channels, skills: Skills) {
+function createRuntime(
+  settings: Settings,
+  channels: Channels,
+  skills: Skills,
+  sharedTools: ToolSet,
+) {
   const channelOf = (conversation: Conversation) =>
     channels.get(conversation.connection) as Channel;
   const retrieve = createRetriever(channelOf);
@@ -59,7 +66,10 @@ function createRuntime(settings: Settings, channels: Channels, skills: Skills) {
         turn,
         byAgent: true,
       }),
-    connectionTools: () => Promise.resolve({}),
+    connectionTools: async (conversation) => ({
+      ...sharedTools,
+      ...(await channelOf(conversation).tools?.(conversation.chat)),
+    }),
     preparation: preparationModels(settings, gateway),
     summary: {
       model: gateway(settings.summaryModel ?? settings.model),
@@ -142,6 +152,22 @@ async function openStorage(dataDir: string) {
   };
 }
 
+async function resume(
+  conversations: Conversations,
+  channels: Channels,
+  runtime: Runtime,
+) {
+  await recover(
+    conversations.all(),
+    (conversation) => channels.get(conversation.connection),
+    (conversation) => {
+      if (conversation.state.pendingReply)
+        runtime.turns.request(conversation, "reply");
+      void runtime.retrieve(conversation);
+    },
+  );
+}
+
 async function loadInstructions(settings: Settings) {
   if (!(await Bun.file(settings.summaryPromptFile).exists())) {
     throw new Error(
@@ -162,16 +188,11 @@ export async function startApp(
   const channels = readConnections(env);
   const { conversations, damaged } = await openStorage(settings.dataDir);
   const skills = await loadInstructions(settings);
-  const runtime = createRuntime(settings, channels, skills);
-  await recover(
-    conversations.all(),
-    (c) => channels.get(c.connection),
-    (conversation) => {
-      if (conversation.state.pendingReply)
-        runtime.turns.request(conversation, "reply");
-      void runtime.retrieve(conversation);
-    },
+  const sharedTools = await connectServers(
+    readMcpServers(env, [...channels.keys()]),
   );
+  const runtime = createRuntime(settings, channels, skills, sharedTools);
+  await resume(conversations, channels, runtime);
   let ready = false;
   const health = async () => ({
     ready,

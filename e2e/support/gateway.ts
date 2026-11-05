@@ -21,7 +21,12 @@ export interface ModelRequest {
     tool_calls?: unknown[];
     tool_call_id?: string;
   }[];
-  tools?: { function: { name: string } }[];
+  tools?: {
+    function: {
+      name: string;
+      parameters: { properties?: Record<string, unknown> };
+    };
+  }[];
 }
 
 type Handler = (request: ModelRequest) => ModelScript | Promise<ModelScript>;
@@ -193,4 +198,8 @@ export function mainRequests(gateway: FakeGateway) {
 
 export function preparationRequests(gateway: FakeGateway) {
   return gateway.requests.filter((request) => !request.stream);
+}
+
+export function toolNames(request: ModelRequest) {
+  return (request.tools ?? []).map((tool) => tool.function.name).toSorted();
 }

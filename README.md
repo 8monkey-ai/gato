@@ -79,6 +79,19 @@ The agent hands off with the built-in `handoff_to_colleague` tool. The harness h
 | `AGENT_USER_ID`        | The respond.io user that represents the agent (required). Assignment to this user gives ownership to the agent. |
 | `WEBHOOK_SIGNING_KEYS` | Comma-separated signing keys, one for each respond.io webhook that points to the harness (required).            |
 
+The base respond.io MCP connection (optional) belongs to the same connection:
+
+| Variable       | Default                                                      | Description                                                                             |
+| -------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `MCP_URL`      | (none)                                                       | HTTP address of the self-hosted respond.io MCP server. Set it to enable the connection. |
+| `MCP_TOKEN`    | (required with `MCP_URL`)                                    | Static bearer token for the MCP server.                                                 |
+| `MCP_TOOLS`    | `get_contact,create_comment,add_contact_tags,update_contact` | Permitted provider tools.                                                               |
+| `MCP_LABELS`   | `handoff,out-of-scope`                                       | Labels that the agent can add or remove.                                                |
+| `MCP_FIELDS`   | `firstName,lastName,language`                                | Contact fields that the agent can edit.                                                 |
+| `MCP_STATUSES` | (none)                                                       | Conversation status changes that the agent can make, for example `close`.               |
+
+The tools act only on the current contact: the harness removes the `identifier` argument from each tool and fills in the current contact. Tools without an `identifier` argument, and `send_message`, are refused at startup. Disallowed labels, fields and status changes are rejected without a call to the server. The harness tells the agent to edit profile fields only with values that the customer supplied or confirmed. It cannot verify this.
+
 In respond.io, add webhooks to `https://<host>/webhooks/<name>` for the events New Incoming Message, New Outgoing Message, Contact Assignee Updated, Conversation Opened and Conversation Closed. The harness rejects notifications with a wrong `X-Webhook-Signature`. Replies use the messaging route that respond.io selects. Internal notes become respond.io comments, and labels become contact tags.
 
 #### Telegram (`TYPE=telegram`)
@@ -94,6 +107,10 @@ The adapter uses long polling, so it needs no public URL. Telegram has no assign
 - `/pause <chat>` and `/resume <chat>`: give the conversation to a human or back to the agent.
 - `/close <chat>` and `/open <chat>`: close or reopen the conversation.
 - `/label <chat> <label>` and `/unlabel <chat> <label>`: add or remove a local label.
+
+### MCP servers
+
+`MCP_SERVERS` is a comma-separated list of server names. Each server has the variables `MCP_<NAME>_URL` (HTTP transport), `MCP_<NAME>_TOKEN` (optional bearer token) and `MCP_<NAME>_TOOLS` (required list of permitted tools). The agent sees a tool as `<name>__<tool>`. A server name must not be the name of a channel connection. The harness connects at startup and does not start when a server or a permitted tool is not available.
 
 ## Chat folder format
 

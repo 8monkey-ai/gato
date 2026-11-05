@@ -43,6 +43,14 @@ export interface RunnerDeps {
 
 function recorder(conversation: Conversation, turn: string) {
   return async (entry: EntryInput) => {
+    if (entry.kind === "tool-call") {
+      const fields = {
+        connection: conversation.connection,
+        chat: conversation.chat,
+        turn,
+      };
+      log("info", "tool.called", { ...fields, tool: entry.tool });
+    }
     insertEntry(conversation.entries, {
       ...entry,
       id: crypto.randomUUID(),

@@ -1,10 +1,12 @@
 import { RespondIO, RespondIOError } from "@respond-io/typescript-sdk";
+import type { ToolSet } from "ai";
 
 import type { Env } from "../../config/env.ts";
 import { errorText, log } from "../../log.ts";
 import type { Channel, Inbox, OutgoingPart, SendResult } from "../channel.ts";
 import { registerChannelType } from "../channel.ts";
 import { download } from "../download.ts";
+import { connectRespondMcp, readMcpSettings } from "./mcp.ts";
 import { MalformedEvent, parseEvent } from "./parse.ts";
 import { verifySignature } from "./signature.ts";
 
@@ -98,21 +100,23 @@ function readSettings(env: Env) {
     maxRetries: 1,
     timeout: 15_000,
   });
-  return { client, signingKeys, agentUserId: env.string("AGENT_USER_ID") };
+  const agentUserId = env.string("AGENT_USER_ID");
+  return { client, signingKeys, agentUserId, mcp: readMcpSettings(env) };
 }
 
 function createRespondIo(name: string, env: Env): Channel {
-  const { client, signingKeys, agentUserId } = readSettings(env);
+  const { client, signingKeys, agentUserId, mcp } = readSettings(env);
   let inbox: Inbox | undefined;
+  let contactTools: ((chat: string) => ToolSet) | undefined;
   const route = webhook({ name, signingKeys, agentUserId, inbox: () => inbox });
   return {
     maxMessageLength: 4096,
     nativeAssignment: true,
     videoAttachments: true,
     routes: { [`/webhooks/${name}`]: route },
-    start: (receiver) => {
+    async start(receiver) {
+      if (mcp) contactTools = await connectRespondMcp(name, mcp);
       inbox = receiver;
-      return Promise.resolve();
     },
     stop: () => {
       inbox = undefined;
@@ -124,6 +128,7 @@ function createRespondIo(name: string, env: Env): Channel {
       add: async (chat, text) =>
         void (await client.comments.create(contact(chat), { text })),
     },
+    tools: (chat) => Promise.resolve(contactTools?.(chat) ?? {}),
     labels: {
       add: async (chat, labels) =>
         void (await client.contacts.addTags(contact(chat), labels)),
