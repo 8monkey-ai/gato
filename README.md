@@ -66,6 +66,21 @@ The agent hands off with the built-in `handoff_to_colleague` tool. The harness h
 | `VIDEO_LINKS_AS`              | `attachment` | `text`                                                             |
 | `VIDEO_SURROUNDING_TEXT`      | `replace`    | `separate` (send the text as its own message)                      |
 
+### Nudges and expiry
+
+| Variable               | Default                 | Description                                                                  |
+| ---------------------- | ----------------------- | ---------------------------------------------------------------------------- |
+| `NUDGES_ENABLED`       | `true`                  | Automatic nudges.                                                            |
+| `EXPIRY_ENABLED`       | `true`                  | Automatic expiry.                                                            |
+| `NUDGE_CHECK_INTERVAL` | `5m`                    | Time between checks.                                                         |
+| `NUDGE_MILESTONES`     | `5m,35m,12h35m,12h45m`  | Times after the latest real customer message.                                |
+| `NUDGE_HOURS`          | `0-24`                  | Permitted local hours for nudges, `<from>-<to>`.                             |
+| `EXPIRY_AFTER`         | `13h45m`                | Expiry threshold after the latest real customer message.                     |
+| `EXPIRY_EXEMPT_LABEL`  | `out-of-scope-unsolved` | Label that prevents expiry. It does not stop nudges.                         |
+| `NUDGE_INSTRUCTION`    | `Nudge`                 | Text of the internal note and of the prompt that asks the agent to continue. |
+
+Each check makes at most one attempt per conversation. Before an action, the harness gets the current ownership from the channel when the channel can give it (respond.io). `/health` shows the time of the last check.
+
 ### Channel connections
 
 `CONNECTIONS` is a comma-separated list of connection names (lowercase letters, digits and `_`). Each connection has variables with the prefix `CONNECTION_<NAME>_`, for example `CONNECTION_MAIN_TYPE`. A connection that is not in the list needs no credentials.
@@ -125,6 +140,7 @@ External migration tools can write folders in this format. The harness reads the
 
 ## Platform limits
 
+- The respond.io API gives no reliable message history for reconciliation. After a restart, the harness gets the current ownership of a conversation before it nudges or expires it, and uses its own record for activity. respond.io retries webhooks for some minutes; messages from a longer outage are not imported.
 - Chat completion APIs do not accept files in assistant messages. When an operator or workflow file goes directly to the main call, the harness keeps the operator message on the assistant side and sends the file in a user-side message that names the original sender.
 - Telegram gives message times with second precision. When a message arrives in the same second as its time, the harness uses the receive time, so that the order stays correct.
 

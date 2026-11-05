@@ -35,7 +35,7 @@ export function latestCustomerAt(entries: Entry[]) {
     );
 }
 
-function isAgentActivity(entry: Entry) {
+export function isAgentActivity(entry: Entry) {
   if (entry.kind === "note") return entry.byAgent === true;
   return (
     entry.kind === "message" &&

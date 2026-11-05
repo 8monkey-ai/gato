@@ -11,6 +11,7 @@ interface Failure {
   path: RegExp;
   status: number;
   drop?: boolean;
+  skip?: number;
 }
 
 export const agentUserId = 77;
@@ -101,7 +102,9 @@ export class FakeRespondIo {
       ? (JSON.parse(text) as Record<string, unknown>)
       : undefined;
     this.calls.push({ method: request.method, path, body, at: Date.now() });
-    const index = this.failures.findIndex((item) => item.path.test(path));
+    const index = this.failures.findIndex(
+      (item) => item.path.test(path) && !(item.skip && item.skip-- > 0),
+    );
     if (index >= 0) {
       const [failure] = this.failures.splice(index, 1);
       if (failure!.drop) return new Response(null, { status: 502 });

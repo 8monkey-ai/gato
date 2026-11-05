@@ -1,15 +1,4 @@
-import type { OpenRouterProvider } from "@openrouter/ai-sdk-provider";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import type { ToolSet } from "ai";
-
-import { createAfterTurn } from "./agent/after-turn.ts";
-import type {
-  PreparationModels,
-  PreparedCategory,
-} from "./agent/attachments.ts";
-import { createPreparer } from "./agent/prepare.ts";
-import { createTurnRunner } from "./agent/runner.ts";
-import type { Channel, RouteHandler } from "./channels/channel.ts";
+import type { Inbox, RouteHandler } from "./channels/channel.ts";
 import type { EnvSource } from "./config/env.ts";
 import { readEnv } from "./config/env.ts";
 import type { Settings } from "./config/settings.ts";
@@ -20,75 +9,16 @@ import {
   createConversations,
   DamagedHistory,
 } from "./conversation/conversations.ts";
-import { handoff } from "./conversation/handoff.ts";
 import { createInbox } from "./conversation/inbox.ts";
-import { mayAnswer } from "./conversation/ownership.ts";
 import { recover } from "./conversation/recovery.ts";
-import { createRetriever } from "./conversation/retrieval.ts";
 import type { Conversation } from "./conversation/store.ts";
 import { checkWritable, loadAll } from "./conversation/store.ts";
-import { createTurns } from "./conversation/turns.ts";
 import { errorText, log } from "./log.ts";
-import type { Skills } from "./skills/catalogue.ts";
+import { createNudges } from "./nudges/scheduler.ts";
+import type { Channels, Runtime } from "./runtime.ts";
+import { createRuntime } from "./runtime.ts";
 import { createSkills } from "./skills/catalogue.ts";
 import { connectServers, readMcpServers } from "./tools/servers.ts";
-
-type Channels = Map<string, Channel>;
-
-function preparationModels(settings: Settings, gateway: OpenRouterProvider) {
-  const models: PreparationModels = {};
-  for (const [category, id] of Object.entries(settings.preparationModels)) {
-    if (id) models[category as PreparedCategory] = { id, model: gateway(id) };
-  }
-  return models;
-}
-
-function createRuntime(
-  settings: Settings,
-  channels: Channels,
-  skills: Skills,
-  sharedTools: ToolSet,
-) {
-  const channelOf = (conversation: Conversation) =>
-    channels.get(conversation.connection) as Channel;
-  const retrieve = createRetriever(channelOf);
-  const eligible = (conversation: Conversation) =>
-    mayAnswer(settings.ownershipPolicy, conversation.state);
-  const gateway = createOpenRouter(settings.gateway);
-  const prepare = createPreparer({
-    settings,
-    skills,
-    retrieve,
-    handoff: (conversation, reason, turn) =>
-      handoff(conversation, channelOf(conversation), {
-        kind: "out-of-scope",
-        reason,
-        turn,
-        byAgent: true,
-      }),
-    connectionTools: async (conversation) => ({
-      ...sharedTools,
-      ...(await channelOf(conversation).tools?.(conversation.chat)),
-    }),
-    preparation: preparationModels(settings, gateway),
-    summary: {
-      model: gateway(settings.summaryModel ?? settings.model),
-      promptFile: settings.summaryPromptFile,
-      timezone: settings.timezone,
-    },
-  });
-  const runner = createTurnRunner({
-    settings,
-    channelOf,
-    model: gateway(settings.model),
-    prepare,
-    afterTurn: createAfterTurn({ channelOf, eligible }),
-    nudgeInstruction: "Nudge",
-  });
-  return { retrieve, turns: createTurns(runner, eligible) };
-}
-
-type Runtime = ReturnType<typeof createRuntime>;
 
 function serve(
   port: number,
@@ -179,6 +109,46 @@ async function loadInstructions(settings: Settings) {
   return skills;
 }
 
+function nudgesFor(
+  settings: Settings,
+  channels: Channels,
+  conversations: Conversations,
+  runtime: Runtime,
+  inboxes: Map<string, Inbox>,
+) {
+  return createNudges({
+    settings: settings.nudges,
+    timezone: settings.timezone,
+    conversations: () => conversations.all(),
+    channelOf: (conversation) => channels.get(conversation.connection),
+    eligible: runtime.eligible,
+    busy: (conversation) => runtime.turns.isBusy(conversation),
+    async refresh(conversation: Conversation) {
+      const channel = runtime.channelOf(conversation);
+      if (channel.reconcile)
+        await inboxes
+          .get(conversation.connection)!
+          .handle(await channel.reconcile(conversation.chat));
+    },
+    requestNudge: (conversation) =>
+      runtime.turns.request(conversation, "nudge"),
+  });
+}
+
+async function startChannels(
+  channels: Channels,
+  conversations: Conversations,
+  runtime: Runtime,
+  inboxes: Map<string, Inbox>,
+  fail: (error: unknown) => void,
+) {
+  for (const [connection, channel] of channels) {
+    const inbox = inboxFor(connection, conversations, runtime, fail);
+    inboxes.set(connection, inbox);
+    await channel.start(inbox);
+  }
+}
+
 export async function startApp(
   source: EnvSource,
   fail: (error: unknown) => void,
@@ -194,6 +164,8 @@ export async function startApp(
   const runtime = createRuntime(settings, channels, skills, sharedTools);
   await resume(conversations, channels, runtime);
   let ready = false;
+  const inboxes = new Map<string, Inbox>();
+  const nudges = nudgesFor(settings, channels, conversations, runtime, inboxes);
   const health = async () => ({
     ready,
     connections: [...channels.keys()],
@@ -201,11 +173,11 @@ export async function startApp(
     skillProblems: await skills
       .problems()
       .catch((error: unknown) => [errorText(error)]),
+    nudges: nudges.status(),
   });
   const server = serve(settings.port, channels, health);
-  for (const [connection, channel] of channels) {
-    await channel.start(inboxFor(connection, conversations, runtime, fail));
-  }
+  await startChannels(channels, conversations, runtime, inboxes, fail);
+  nudges.start();
   ready = true;
   log("info", "app.ready", {
     port: server.port,
@@ -214,6 +186,7 @@ export async function startApp(
   return {
     async stop() {
       ready = false;
+      await nudges.stop();
       await server.stop();
       await Promise.all(
         [...channels.values()].map((channel) => channel.stop()),

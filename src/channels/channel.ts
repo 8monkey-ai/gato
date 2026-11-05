@@ -65,7 +65,7 @@ export interface Channel {
     list(chat: string): Promise<string[]>;
   };
   notifyOperators?(chat: string, text: string): Promise<void>;
-  reconcile?(chat: string): Promise<ChatEvent[]>;
+  reconcile?(chat: string): Promise<ChatEvent>;
   tools?(chat: string): Promise<ToolSet>;
 }
 

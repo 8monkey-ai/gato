@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 
+import { parseNudgeSettings } from "../nudges/policy.ts";
 import type { Env } from "./env.ts";
 
 export const countries = ["MY", "PH"] as const;
@@ -92,6 +93,7 @@ export function parseSettings(env: Env) {
     },
     delivery: parseDelivery(env),
     shutdownGraceMs: env.duration("SHUTDOWN_GRACE", "20s"),
+    nudges: parseNudgeSettings(env),
   };
 }
 

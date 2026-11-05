@@ -7,7 +7,7 @@ import type { Channel, Inbox, OutgoingPart, SendResult } from "../channel.ts";
 import { registerChannelType } from "../channel.ts";
 import { download } from "../download.ts";
 import { connectRespondMcp, readMcpSettings } from "./mcp.ts";
-import { MalformedEvent, parseEvent } from "./parse.ts";
+import { assigneeOf, MalformedEvent, parseEvent } from "./parse.ts";
 import { verifySignature } from "./signature.ts";
 
 type Client = InstanceType<typeof RespondIO>;
@@ -127,6 +127,12 @@ function createRespondIo(name: string, env: Env): Channel {
     notes: {
       add: async (chat, text) =>
         void (await client.comments.create(contact(chat), { text })),
+    },
+    async reconcile(chat) {
+      const found = await client.contacts.get(contact(chat));
+      const assigneeId = found.assignee ? String(found.assignee.id) : undefined;
+      const assignee = assigneeOf(assigneeId, agentUserId);
+      return { chat, ownership: { assignee, open: found.status === "open" } };
     },
     tools: (chat) => Promise.resolve(contactTools?.(chat) ?? {}),
     labels: {
