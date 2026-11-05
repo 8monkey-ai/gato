@@ -30,7 +30,7 @@ Each adapter declares which features it supports. Missing platform features must
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Operator or workflow message events     | The record includes all messages the adapter can observe and its own sends, without waiting for or inventing unavailable events. Telegram does not require an operator inbox or operator-message listener                                                                                   |
 | Assignment and open/closed state        | No platform holds this state, so the harness keeps it in the chat folder. New conversations start open and agent-owned; operators can pause and resume them locally, using the same ownership rules                                                                                         |
-| Internal notes and labels               | These remain private in the chat folder, including nudge activity, handoff reasons, and expiry exemptions; they are never sent to the customer                                                                                                                                              |
+| Internal notes and labels               | These remain private in the chat folder, including nudge activity and handoff reasons; they are never sent to the customer                                                                                                                                                                  |
 | Human routing or operator notifications | Handoff is recorded locally, subsequent agent replies and nudges pause until explicitly resumed, and logs indicate that operator attention is needed. A configured operator notification destination receives the notification; assignment to a human is never claimed without confirmation |
 
 Native channel capabilities take precedence when available. A supported feature that fails still follows its failure policy; it is not silently treated as unsupported. Missing remote state does not block nudge readiness when the complete authoritative state is held locally.
@@ -202,31 +202,27 @@ A recoverable tool error can be returned to the agent for correction within its 
 
 The following have their own outcomes rather than automatic error handoff:
 
-| Situation                           | Outcome                                                    |
-| ----------------------------------- | ---------------------------------------------------------- |
-| Deliberate skip                     | Internal explanation, no out-of-scope handoff              |
-| Summary failure                     | The reply continues under the summary rules                |
-| Nudge failure                       | Internal failure note                                      |
-| Expiry exemption labels unavailable | The problem is logged and expiry is skipped for that check |
-| Uncertain message acceptance        | The uncertainty is logged, without automatic resend        |
+| Situation                    | Outcome                                             |
+| ---------------------------- | --------------------------------------------------- |
+| Deliberate skip              | Internal explanation, no out-of-scope handoff       |
+| Summary failure              | The reply continues under the summary rules         |
+| Nudge failure                | Internal failure note                               |
+| Uncertain message acceptance | The uncertainty is logged, without automatic resend |
 
 The record distinguishes completed, skipped, superseded, failed, timed-out, and interrupted turns. Abandoned work must not permanently block a conversation after restart.
 
-## 8. Nudges and expiry
+## 8. Nudges
 
-Operators can configure nudges and expiry without application changes. Defaults are:
+Operators can configure nudges without application changes. Defaults are:
 
 | Setting                                                 | Default                                                                                                      |
 | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Automatic nudges / automatic expiry                     | Both enabled; independently switchable                                                                       |
+| Automatic nudges                                        | Enabled; can be switched off                                                                                 |
 | Check frequency                                         | Approximately every five minutes                                                                             |
 | Nudge milestones after the latest real customer message | 5 minutes, 35 minutes, 12 hours 35 minutes, 12 hours 45 minutes                                              |
 | Permitted hours                                         | All hours, including outside office hours                                                                    |
 | Attempts per conversation per check                     | At most one                                                                                                  |
 | Qualifying agent activity                               | Agent messages and agent-authored internal notes, including the initial nudge note even if the attempt fails |
-| Expiry threshold after the latest real customer message | 13 hours 45 minutes                                                                                          |
-| Activity required for expiry                            | Agent activity at or after the latest real customer message                                                  |
-| Expiry exemption                                        | Out-of-scope-unsolved label; this does not suppress nudges                                                   |
 | Nudge instruction                                       | “Nudge” asks the agent to continue                                                                           |
 | Failed nudge                                            | Internal “Nudge failed” explanation, no automatic error handoff                                              |
 
@@ -234,11 +230,10 @@ Only open, agent-owned conversations with reconciled activity are eligible. Nudg
 
 The policy runs in this order:
 
-1. **Expiry:** eligibility depends on the configured threshold, activity requirement, and exemptions. Eligible expiry records elapsed time, applies handoff and expired labels, and stops nudges after success.
-2. **Nudge selection:** the earliest milestone that has passed without qualifying agent activity at or beyond it is selected, subject to the per-check limit. Milestones are measured from the customer message, not from the previous nudge.
-3. **Execution:** an internal “Nudge” note is written before the agent is asked to continue. With the default nudge settings, that note advances agent activity even if the attempt fails. The artificial prompt never advances customer activity.
+1. **Nudge selection:** the earliest milestone that has passed without qualifying agent activity at or beyond it is selected, subject to the per-check limit. Milestones are measured from the customer message, not from the previous nudge.
+2. **Execution:** an internal “Nudge” note is written before the agent is asked to continue. With the default nudge settings, that note advances agent activity even if the attempt fails. The artificial prompt never advances customer activity.
 
-Without customer activity, neither nudges nor expiry occur. Unavailable exemption labels cause a logged problem and skipped expiry for that check, with no dedicated retry; ordinary periodic checks continue. Individual failures remain isolated and unfinished work is deferred. Restart and policy changes must not reset activity or repeat committed attempts.
+Without customer activity, no nudges occur. Individual failures remain isolated and unfinished work is deferred. Restart and policy changes must not reset activity or repeat committed attempts.
 
 ## 9. Agent tools and permissions
 
@@ -259,7 +254,7 @@ The respond.io MCP connection belongs to base harness configuration, alongside t
 | Change conversation status     | Disabled until explicitly enabled with permitted changes                                |
 | Other fields or provider tools | Disabled until explicitly enabled, including phone/email and custom-field edits         |
 
-Profile changes require explicit customer input or confirmation, never inference. Permissions can expand the allowed actions but never their scope beyond the current account/contact or the connected account's own authority. Disallowed actions are rejected without being applied. Harness-managed handoff, error, and expiry follow their own policies, including system-applied error and expired labels.
+Profile changes require explicit customer input or confirmation, never inference. Permissions can expand the allowed actions but never their scope beyond the current account/contact or the connected account's own authority. Disallowed actions are rejected without being applied. Harness-managed handoff and error paths follow their own policies, including system-applied error labels.
 
 These are provider-supplied tools; the harness owns the connection and permissions. Incoming messages and customer reply delivery remain direct channel responsibilities.
 
@@ -281,5 +276,5 @@ Shutdown stops new work, allows safe completion within a configured bound, and p
 4. **Useful memory:** summary reuse, first generation, refresh, empty output, and failure follow the three-day/recent-month rules. Successful summaries persist in summary.txt. An omitted summary model uses the base model; a configured summary model is used only for summarization. The repository's summary prompt is the default. Prompt or summary-model changes apply to the next generation without forcing a refresh or deleting history. Country filtering and instruction revision remain consistent throughout a turn.
 5. **Attachment paths:** for each of images, documents, and audio, an omitted preparation model sends the file to the main call. Configuring a model makes a separate preparation call and replaces that file with its actual text response inside the original attributed message. Categories can use different choices; originals stay stored, results are reused, and all calls count toward turn limits.
 6. **Controlled actions:** base respond.io permissions apply without business-specific tools. Knowledge-driven handoff uses the tool; unrecoverable execution errors use the harness path. Denied actions, private diagnostics, uncertain sends, and other exceptions follow their specified outcomes.
-7. **Configurable service:** model/work limits, delivery options, timezone, and nudge/expiry settings change through deployment configuration. Defaults produce no nudge at minute 34 after agent activity at minute 6, but allow one at minute 35; expiry needs the configured activity and no exemption. Configuration changes never duplicate committed actions.
+7. **Configurable service:** model/work limits, delivery options, timezone, and nudge settings change through deployment configuration. Defaults produce no nudge at minute 34 after agent activity at minute 6, but allow one at minute 35. Configuration changes never duplicate committed actions.
 8. **Channel independence:** respond.io and Telegram each work alone or simultaneously through configuration. Histories, routing, ownership, and provider-specific tools remain isolated by connection. Telegram handles messages, attachments, interruptions, summaries, and nudges without requiring operator-message events or respond.io services. Missing assignment, notes, labels, and handoff routing use the defined local fallbacks; unsupported delivery features degrade without losing content or duplicating sends. Local state survives restart, paused conversations stay paused, and disabled connections require no credentials or service availability. Further adapters can be added without changing shared conversation, history, skill, or agent policies.
