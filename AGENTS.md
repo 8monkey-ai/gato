@@ -10,6 +10,7 @@
 - Stay within the requested scope.
 - When the spec is silent, allows more than one reading, or asks for something a platform cannot do, choose the behavior that best keeps the intent of the spec with the least new code and configuration. For a platform limit, use the closest behavior that keeps the requirement's intent and the fallback rules of `SPECS.md`, and write the limit in `README.md`.
 - Make a value configurable when the spec asks for it, or when the people who operate the system will probably need a different value. Otherwise, use a fixed value. Use the configuration format the project already uses. If the project has no format yet, use the one that is easiest to operate, for example environment variables.
+- Name each configuration value after the system it configures. An operator should be able to tell from the name alone which integration a value belongs to.
 
 ## Design
 
