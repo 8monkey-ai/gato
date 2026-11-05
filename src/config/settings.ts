@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import type { Env } from "./env.ts";
 
 export const countries = ["MY", "PH"] as const;
@@ -72,6 +74,13 @@ export function parseSettings(env: Env) {
       baseURL: env.optional("OPENROUTER_BASE_URL"),
     },
     model: env.string("MODEL"),
+    summaryModel: env.optional("SUMMARY_MODEL"),
+    summaryPromptFile: env.string(
+      "SUMMARY_PROMPT_FILE",
+      fileURLToPath(new URL("../../prompts/summary.md", import.meta.url)),
+    ),
+    recentContactHistory: env.bool("RECENT_CONTACT_HISTORY", false),
+    includeToolActivity: env.bool("INCLUDE_TOOL_ACTIVITY", true),
     preparationModels: {
       image: env.optional("IMAGE_MODEL"),
       document: env.optional("DOCUMENT_MODEL"),

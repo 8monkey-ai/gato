@@ -15,22 +15,26 @@ The application reads its configuration from environment variables. It writes al
 
 ### Core
 
-| Variable              | Default    | Description                                                                     |
-| --------------------- | ---------- | ------------------------------------------------------------------------------- |
-| `DATA_DIR`            | (required) | Folder for the chat folders. Mount it outside the container.                    |
-| `COUNTRY`             | (required) | `MY` or `PH`.                                                                   |
-| `TIMEZONE`            | `UTC`      | IANA timezone for dates, summaries, history windows and nudge hours.            |
-| `PORT`                | `3000`     | HTTP port for webhooks and `/health`.                                           |
-| `OPENROUTER_API_KEY`  | (required) | Key for the AI gateway.                                                         |
-| `OPENROUTER_BASE_URL` | OpenRouter | Base URL of an OpenRouter-compatible gateway.                                   |
-| `MODEL`               | (required) | Base conversation model.                                                        |
-| `IMAGE_MODEL`         | (none)     | Optional model that describes images. Without it, images go to the main call.   |
-| `DOCUMENT_MODEL`      | (none)     | Optional model that reads documents. Without it, documents go to the main call. |
-| `AUDIO_MODEL`         | (none)     | Optional model that transcribes audio. Without it, audio goes to the main call. |
-| `OWNERSHIP_POLICY`    | `assigned` | `assigned`, `shared` or `unrestricted`.                                         |
-| `TURN_MAX_STEPS`      | `12`       | Maximum model calls per turn, including summary and preparation calls.          |
-| `TURN_MAX_DURATION`   | `2m`       | Maximum response time per turn.                                                 |
-| `SHUTDOWN_GRACE`      | `20s`      | Time that running turns get to finish at shutdown.                              |
+| Variable                 | Default              | Description                                                                         |
+| ------------------------ | -------------------- | ----------------------------------------------------------------------------------- |
+| `DATA_DIR`               | (required)           | Folder for the chat folders. Mount it outside the container.                        |
+| `COUNTRY`                | (required)           | `MY` or `PH`.                                                                       |
+| `TIMEZONE`               | `UTC`                | IANA timezone for dates, summaries, history windows and nudge hours.                |
+| `PORT`                   | `3000`               | HTTP port for webhooks and `/health`.                                               |
+| `OPENROUTER_API_KEY`     | (required)           | Key for the AI gateway.                                                             |
+| `OPENROUTER_BASE_URL`    | OpenRouter           | Base URL of an OpenRouter-compatible gateway.                                       |
+| `MODEL`                  | (required)           | Base conversation model.                                                            |
+| `SUMMARY_MODEL`          | `MODEL`              | Optional model for contact summaries.                                               |
+| `SUMMARY_PROMPT_FILE`    | `prompts/summary.md` | Replacement summary prompt.                                                         |
+| `RECENT_CONTACT_HISTORY` | `false`              | `true` limits model context to the latest calendar month of the contact's messages. |
+| `INCLUDE_TOOL_ACTIVITY`  | `true`               | `false` omits earlier tool activity and nudge prompts from model context.           |
+| `IMAGE_MODEL`            | (none)               | Optional model that describes images. Without it, images go to the main call.       |
+| `DOCUMENT_MODEL`         | (none)               | Optional model that reads documents. Without it, documents go to the main call.     |
+| `AUDIO_MODEL`            | (none)               | Optional model that transcribes audio. Without it, audio goes to the main call.     |
+| `OWNERSHIP_POLICY`       | `assigned`           | `assigned`, `shared` or `unrestricted`.                                             |
+| `TURN_MAX_STEPS`         | `12`                 | Maximum model calls per turn, including summary and preparation calls.              |
+| `TURN_MAX_DURATION`      | `2m`                 | Maximum response time per turn.                                                     |
+| `SHUTDOWN_GRACE`         | `20s`                | Time that running turns get to finish at shutdown.                                  |
 
 Durations use units `h`, `m`, `s` and `ms`, for example `12h35m` or `750ms`.
 

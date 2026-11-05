@@ -61,6 +61,11 @@ function createRuntime(settings: Settings, channels: Channels, skills: Skills) {
       }),
     connectionTools: () => Promise.resolve({}),
     preparation: preparationModels(settings, gateway),
+    summary: {
+      model: gateway(settings.summaryModel ?? settings.model),
+      promptFile: settings.summaryPromptFile,
+      timezone: settings.timezone,
+    },
   });
   const runner = createTurnRunner({
     settings,
@@ -137,6 +142,17 @@ async function openStorage(dataDir: string) {
   };
 }
 
+async function loadInstructions(settings: Settings) {
+  if (!(await Bun.file(settings.summaryPromptFile).exists())) {
+    throw new Error(
+      `The summary prompt file ${settings.summaryPromptFile} does not exist.`,
+    );
+  }
+  const skills = createSkills(settings.skillsDir, settings.country);
+  await skills.current();
+  return skills;
+}
+
 export async function startApp(
   source: EnvSource,
   fail: (error: unknown) => void,
@@ -145,8 +161,7 @@ export async function startApp(
   const settings = parseSettings(env);
   const channels = readConnections(env);
   const { conversations, damaged } = await openStorage(settings.dataDir);
-  const skills = createSkills(settings.skillsDir, settings.country);
-  await skills.current();
+  const skills = await loadInstructions(settings);
   const runtime = createRuntime(settings, channels, skills);
   await recover(
     conversations.all(),

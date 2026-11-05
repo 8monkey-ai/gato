@@ -40,7 +40,3 @@ export function composeInstructions(parts: InstructionParts) {
     .filter((section) => section.trim() !== "")
     .join("\n\n");
 }
-
-export function today(timezone: string) {
-  return Temporal.Now.plainDateISO(timezone).toString();
-}
