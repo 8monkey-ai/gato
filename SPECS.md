@@ -20,7 +20,7 @@ The conversation record includes incoming customer messages and everything sent 
 
 Each enabled adapter receives messages and relevant conversation changes, authenticates its notifications, and presents them to the shared conversation service. The respond.io adapter receives message, assignment, and closure notifications directly. Accepted work is saved before acknowledging receipt. Repeated notifications must not duplicate messages or actions, and outgoing messages must not trigger another answer. Malformed notifications are logged without running the agent; irrelevant notifications are ignored.
 
-History follows original sent-time order. A delayed message belongs at its original place in the conversation, without moving the latest activity backwards. Older assignment or closure notifications cannot overwrite newer known state. Uncertain sender identity remains explicit in the record.
+History follows original sent-time order. A delayed message belongs at its original place in the conversation, without moving the latest activity backwards. Uncertain sender identity remains explicit in the record.
 
 ### Channel capabilities and fallbacks
 
@@ -32,7 +32,7 @@ Each adapter declares which features it supports. Missing platform features must
 | Assignment and open/closed state        | State is held in the chat folder. New conversations start open and agent-owned; operators can pause and resume them locally, using the same ownership rules                                                                                                                                 |
 | Internal notes and labels               | These remain private in the chat folder, including nudge activity, handoff reasons, and expiry exemptions; they are never sent to the customer                                                                                                                                              |
 | Human routing or operator notifications | Handoff is recorded locally, subsequent agent replies and nudges pause until explicitly resumed, and logs indicate that operator attention is needed. A configured operator notification destination receives the notification; assignment to a human is never claimed without confirmation |
-| Contact merges                          | Conversations remain separate unless the platform supplies a supported merge event                                                                                                                                                                                                          |
+| Contact merges                          | Conversations with different contact identifiers remain separate; the harness does not combine their histories                                                                                                                                                                              |
 
 Native channel capabilities take precedence when available. A supported feature that fails still follows its failure policy; it is not silently treated as unsupported. Missing remote state does not block nudge readiness when the complete authoritative state is held locally.
 
@@ -40,21 +40,19 @@ Native channel capabilities take precedence when available. A supported feature 
 
 Message type, sender attribution, delivery state, and role in model context are distinct. In respond.io, classification follows this order: incoming traffic is customer content; outgoing workflow traffic is workflow content; other outgoing traffic from an API or the configured bot user is agent content; remaining outgoing traffic is operator content. An unidentified outgoing sender retains unknown attribution within the operator category. In Telegram, customer messages are user-side and the harness bot's confirmed sends are agent-side; unavailable operator or workflow contributions are never fabricated. Each adapter classifies only what its platform information establishes.
 
-| Message type                               | What it represents                                                     | Use in model context                                                                                                   |
-| ------------------------------------------ | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Customer / user                            | Incoming content from the contact, including attachments               | User-side content; may trigger a reply when ownership permits                                                          |
-| Human operator                             | Outgoing content from a person in the team inbox                       | Assistant-side history, explicitly attributed to a human colleague; never triggers a reply                             |
-| Workflow                                   | Outgoing content from a platform workflow                              | Assistant-side history with workflow attribution; never triggers a reply                                               |
-| Agent                                      | Generated agent output, or outgoing traffic classified as agent-origin | Assistant-side conversation only for content known to have been sent; channel echoes reconcile to the original message |
-| Tool request                               | An action the agent asks a tool to perform                             | Assistant-side tool request, private and linked to its result; distinct from customer-facing prose                     |
-| Tool result                                | A tool's answer or execution error                                     | Tool-side context linked to its request; not a customer or operator message                                            |
-| Internal comment, error, or handoff record | Operator notes, nudge notes, diagnostics, and handoff reasons/state    | Internal record, excluded from ordinary conversation history supplied to the model                                     |
-| Instructions                               | System, profile, and skill instructions                                | Private instruction context, not a participant's conversation message                                                  |
-| Summary                                    | Dated contact memory                                                   | Private assistant-side context supplied before the selected conversation, not a delivered agent message                |
+| Message type                            | What it represents                                                        | Use in model context                                                                                                   |
+| --------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Customer / user                         | Incoming content from the contact, including attachments                  | User-side content; may trigger a reply when ownership permits                                                          |
+| Human operator                          | Outgoing content from a person in the team inbox                          | Assistant-side history, explicitly attributed to a human colleague; never triggers a reply                             |
+| Workflow                                | Outgoing content from a platform workflow                                 | Assistant-side history with workflow attribution; never triggers a reply                                               |
+| Agent                                   | Generated agent output, or outgoing traffic classified as agent-origin    | Assistant-side conversation only for content known to have been sent; channel echoes reconcile to the original message |
+| Tool request                            | An action the agent asks a tool to perform                                | Assistant-side tool request, private and linked to its result; distinct from customer-facing prose                     |
+| Tool result                             | A tool's answer or execution error                                        | Tool-side context linked to its request; not a customer or operator message                                            |
+| Internal note, error, or handoff record | Harness notes such as nudge notes, diagnostics, and handoff reasons/state | Internal record, excluded from ordinary conversation history supplied to the model                                     |
+| Instructions                            | System, profile, and skill instructions                                   | Private instruction context, not a participant's conversation message                                                  |
+| Summary                                 | Dated contact memory                                                      | Private assistant-side context supplied before the selected conversation, not a delivered agent message                |
 
 A nudge's artificial prompt uses user-side input to request continuation, but is marked as an internal trigger: it is not a real customer message or customer activity. Tool failures remain tool results unless the conversation ultimately fails; they are not automatically error handoffs. If a handoff acknowledgement is deliberately delivered to the customer, that delivered text is an agent message, separate from the private handoff record.
-
-When respond.io merges contacts, both histories combine under the surviving contact in original chronological order. Attachments and transcripts stay with their messages, retaining original sender/contact attribution. The same known message appears once; separate messages with identical text remain distinct. Subsequent work uses the surviving contact's ownership; obsolete identities must not produce duplicate replies or nudges. Merging history does not replay past actions.
 
 ## 2. Ownership and response eligibility
 
@@ -75,7 +73,7 @@ Two events have deliberately different effects on a reply already in progress:
 
 After an interruption, the next eligible turn uses the messages already delivered together with all newly received customer input. It must not replay delivered parts or continue the obsolete unsent remainder. Further customer input follows the same interruption rule.
 
-The conversation the agent sees matches the conversation the customer sees: what the customer sees last is also the last visible conversation content in the agent's context. Context includes all received customer messages and known sent/delivered agent, operator, and workflow messages in the channel-visible order where available, using original sent times otherwise. Generation time alone does not establish that a message was sent. Customer messages are not moved artificially to the end, and unsent drafts are not included to make the sequence convenient for generation. Private instructions, summaries, and tool activity do not count as visible conversation messages.
+The conversation the agent sees matches the conversation the customer sees: what the customer sees last is also the last visible conversation content in the agent's context. Context includes all received customer messages and known sent agent, operator, and workflow messages in the channel-visible order where available, using original sent times otherwise. Generation time alone does not establish that a message was sent. Customer messages are not moved artificially to the end, and unsent drafts are not included to make the sequence convenient for generation. Private instructions, summaries, and tool activity do not count as visible conversation messages.
 
 Small timing differences are acceptable while a send is already on its way. Later channel information confirming what was sent updates the record and the view used for subsequent turns. Original event times and the distinction between confirmed and uncertain delivery remain preserved.
 
@@ -85,18 +83,20 @@ Only one turn runs per conversation at a time. Other conversations can progress 
 
 Ordinary message text, captions, and supplied descriptions stay with the message. For each supported attachment category, deployment can independently configure a preparation model:
 
-| Category                         | Optional model's task                                              |
-| -------------------------------- | ------------------------------------------------------------------ |
-| Images, including image stickers | Read or describe the image as text                                 |
-| Documents, including PDFs        | Read the document and return its textual content or interpretation |
-| Audio, including voice notes     | Transcribe the audio as text                                       |
+| Category                         | Optional model's task                                                 |
+| -------------------------------- | --------------------------------------------------------------------- |
+| Images, including image stickers | Read the image and describe it as text|
+| Documents, including PDFs        | Read the document and return its textual content or interpretation    |
+| Audio, including voice notes     | Transcribe the audio as text                                          |
 
 The same rule applies to all three categories:
 
-- **No preparation model configured for that category:** the original file is attached to the main generation call, with no extra model call for that attachment.
-- **Preparation model configured:** the attachment goes to that model first. Its actual text response replaces the file in the original message within the main prompt. Accompanying text, original attribution, time, and the stored attachment reference remain intact. This is a representation of the same message, not a new user or assistant message.
+- **No preparation model configured for that category:** the original file stays in its original message and the participant's original role, and is attached to the main generation call, with no extra model call for that attachment. The harness does not describe it, convert it to text, or move it to another role.
+- **Preparation model configured:** the attachment goes to that model first, in a separate call that is independent of the conversation: the call contains only the file, as user-side input, and the category's task. Its actual text response replaces the file in the original message within the main prompt, in the participant's original role. Accompanying text, original attribution, time, and the stored attachment reference remain intact. This is a representation of the same message, not a new user or assistant message.
 
 These choices are independent: an operator can, for example, transcribe audio separately while passing images and documents directly to the main model. They apply to customer, operator, and workflow attachments while preserving the original participant's role. Preparation calls count toward the turn's response/work limits.
+
+Some main models and gateways accept files only in user-side messages. With such a model, an operator or workflow attachment in a category without a preparation model cannot reach the main model in its assistant-side role. This is a processing failure under the rule below, for the turn that receives the attachment and for every later turn whose context includes it: the turn fails visibly, and the file is never dropped, moved to the user side, or converted to text without a configured preparation model. Deployments that expect operator or workflow attachments configure preparation models for those categories. Startup reports each category in which this failure can occur.
 
 Original files remain stored in either mode. Preparation results are saved with their source attachments for reuse in later turns, distinguishing original participant text from model-produced interpretation. A preparation failure, unusable response, or main model unable to handle a directly attached file is a processing failure; content is never invented and the processing path does not silently change.
 
@@ -108,13 +108,13 @@ Files remain in persistent storage after their download links expire. Derived te
 
 ### The lasting conversation record
 
-Conversation data resides in a dedicated folder that can be mounted outside the container. Each continuing chat has its own folder containing a readable, chronological chat.txt, its attachment files, and a summary.txt once a summary has been generated. summary.txt holds the latest dated summary for future turns. All durable state for that chat resides within its folder, including pending work, delivery outcomes, attachment preparation results, and the instructions used.
+Conversation data resides in a dedicated folder that can be mounted outside the container. Each continuing chat has its own folder containing a readable, chronological chat.txt, its attachment files, and a summary.txt once a summary has been generated. summary.txt holds the latest dated summary for future turns. All durable state for that chat resides within its folder, including pending work, delivery outcomes, and attachment preparation results.
 
 History and attachments remain stored indefinitely. Deletion requires an explicit operator request. Closing, reopening, reassignment, interruption, and summarization never delete the record. Generated, delivered, and uncertain output remain distinguishable.
 
 The harness loads existing chat folders on startup. Storage must be available and writable before work is accepted; a storage problem must not cause a silent switch to an empty history elsewhere. Concurrent activity must not lose records. Damaged or incomplete histories are reported while unaffected conversations continue.
 
-Migrating existing data is a separate concern. The harness reads compatible chat folders prepared externally, without treating migrated messages as new requests or performing a launch-time channel-history import. With no migrated history, recording begins with newly arriving messages. Checking current ownership and nudge activity at startup is separate from migration.
+Migrating existing data is a separate concern. The harness defines the chat-folder format; external migration tools write folders in that format. The harness reads compatible chat folders prepared externally, without treating migrated messages as new requests or performing a launch-time channel-history import. With no migrated history, recording begins with newly arriving messages. Checking current ownership and nudge activity at startup is separate from migration.
 
 ### What the agent sees
 
@@ -138,7 +138,7 @@ Summary preparation occurs as part of an eligible agent turn, under these rules:
 
 Summary input consists of dated customer, operator, and delivered agent content, using the configured timezone. It includes saved attachment interpretations or transcripts where available; otherwise it identifies the attachment without inventing its contents. Internal comments, tool results, undelivered failed/superseded work, and artificial nudge prompts are excluded.
 
-Summarization uses a separate model call. Deployment can select a dedicated summary model; otherwise it uses the base conversation model. The repository's standard summary prompt is the harness's built-in default; deployment configuration can supply a replacement. The default starts with “Primary Language used in this conversation:” and asks for concise, structured English continuation notes, including the customer's needs, concerns, anxieties, and unresolved work, while ignoring artificial nudges.
+Summarization uses a separate model call. Deployment can select a dedicated summary model; otherwise it uses the base conversation model. The standard summary prompt is a file in the harness repository and is the harness's built-in default; deployment configuration can supply a replacement. The default starts with “Primary Language used in this conversation:” and asks for concise, structured English continuation notes, including the customer's needs, concerns, anxieties, and unresolved work, while ignoring artificial nudges.
 
 A successful result and its date are saved in summary.txt for reuse under the rules above; an empty or failed refresh must not overwrite the saved summary. A configured prompt or summary-model change applies when the next summary is generated and does not change refresh timing. The summary remains private, and replies maintain the customer's language and tone. Summarization leaves chat.txt and attachments complete; it does not introduce a separate length-triggered compaction policy.
 
@@ -188,7 +188,7 @@ Delivery is configurable without application changes. The customer-service defau
 
 Delivery preserves message order, omits empty parts, and sends each part once. Pacing must not block generation or customer-message interruption. Failure stops remaining delivery and records which parts reached the customer. One delivery policy applies throughout a turn; changing configuration cannot replay delivered messages. Invalid settings are rejected with an actionable explanation.
 
-Replies use the conversation's channel connection and its configured routing policy. For respond.io, the platform's selected messaging route is the default. An uncertain send outcome is logged without automatic resending, including after restart. A later confirmation updates the original record without creating another send. Temporary failures are retried only when an accepted action cannot be duplicated; permanent failures must not be retried repeatedly.
+Replies use the conversation's channel connection and its configured routing policy. For respond.io, the platform's selected messaging route is the default. An uncertain send outcome is logged without automatic resending, including after restart. Where the channel later reports the send, that report updates the original record without creating another send. Temporary failures are retried only when an accepted action cannot be duplicated; permanent failures must not be retried repeatedly.
 
 Delivery adapts to the channel's capabilities without losing content or changing its order. Messages split further when platform limits require it, unsupported formatting falls back to readable text, and unsupported typing indicators are omitted while configured pacing remains. If a channel cannot send an approved video as an attachment, its original link remains as text. These capability fallbacks are chosen before sending; an uncertain send never triggers an alternative duplicate delivery.
 
@@ -247,8 +247,6 @@ The policy runs in this order:
 
 Without customer activity, neither nudges nor expiry occur. Unavailable exemption labels cause a logged problem and skipped expiry for that check, with no dedicated retry; ordinary periodic checks continue. Individual failures remain isolated and unfinished work is deferred. Restart and policy changes must not reset activity or repeat committed attempts.
 
-Operators can preview failed nudges since a chosen time and explicitly retry them. Eligibility is limited to still-open, agent-owned conversations with no substantive customer, operator, workflow, or agent message since the attempt; failure notes alone do not disqualify them. Individual retry failures do not stop the remaining retries.
-
 ## 9. Agent tools and permissions
 
 The built-in tools are **read skills and references**, restricted to approved repository material, and **hand off to a colleague**, with the behavior above. They remain available independently of external MCP connections.
@@ -257,7 +255,7 @@ Operators can connect MCP servers, configure authentication, and choose permitte
 
 ### Base respond.io MCP connection
 
-The respond.io MCP connection belongs to base harness configuration, alongside the respond.io channel adapter. Configuration controls its enabled state, account, authentication, permitted tools, editable fields, labels, and status changes independently of any business-specific servers. Its contact-specific tools are available only to conversations on the corresponding respond.io connection, not Telegram conversations. The defaults below apply when the connection is enabled.
+The respond.io MCP connection belongs to base harness configuration, alongside the respond.io channel adapter. It connects over HTTP to a self-hosted respond.io MCP server at a configured address. The harness authenticates to that server with a static bearer token from deployment configuration; no interactive sign-in is required. Running and updating the server is outside the harness. Configuration controls its enabled state, server address, bearer token, permitted tools, editable fields, labels, and status changes independently of any business-specific servers. Its contact-specific tools are available only to conversations on the corresponding respond.io connection, not Telegram conversations. The defaults below apply when the connection is enabled.
 
 | Agent action                   | Default permission                                                                      |
 | ------------------------------ | --------------------------------------------------------------------------------------- |
@@ -280,13 +278,13 @@ Deployment configuration covers enabled channel adapters and accounts, their cap
 
 Readiness requires validation of enabled integrations, instructions, country, configured models, limits, and writable storage. An omitted summary model is valid and selects the base model. Omitted attachment-preparation models are valid and select direct file input for their categories. Disabled channels or MCP connections require neither credentials nor availability; a deployment can replace respond.io entirely. Unavailable dependencies, incomplete history recovery, and nudge readiness are visible to operators. Logs connect the customer message, agent work, tool action, and delivery while protecting credentials and personal information.
 
-Shutdown stops new work, allows safe completion within a configured bound, and preserves unfinished or uncertain work. External hosting reattaches the data folder on restart. Operators can inspect conversation records, failed/pending actions, and nudge state. Tests use isolated data/configuration and do not expose test facilities to customers or affect live conversations.
+Shutdown stops new work, allows safe completion within a configured bound, and preserves unfinished or uncertain work. External hosting reattaches the data folder on restart. Operators can inspect conversation records and nudge state. Tests use isolated data/configuration and do not expose test facilities to customers or affect live conversations.
 
 ## Acceptance journeys
 
 1. **Shared service and classification:** a customer writes, a human takes over and shares text/media, and the conversation returns to the agent. Every contribution remains attributed and available. Incoming content is user-side; operator/workflow content is attributed assistant-side; agent echoes appear once. Tool activity and internal records remain distinct and outgoing events never create reply loops.
 2. **Different interruptions:** reassignment to a human lets the current reply finish. New customer input stops unsent parts, including paced messages. The next eligible turn sees the latest known customer-visible conversation in the same order, including any already-in-flight message later confirmed as sent. Cancelled drafts do not appear as delivered, and earlier output is not replayed; minor transmission timing differences are tolerated and reconciled.
-3. **Lasting history:** restart, external restoration, closure/reopening, and contact merges preserve the complete chat.txt, summary.txt when generated, attachments, preparation results, and pending state. Delayed/merged messages retain original chronology. Migration remains external; prepared history is not treated as new work and no automatic launch-time channel-history import occurs.
+3. **Lasting history:** restart, external restoration, and closure/reopening preserve the complete chat.txt, summary.txt when generated, attachments, preparation results, and pending state. Delayed messages retain original chronology. Migration remains external; prepared history is not treated as new work and no automatic launch-time channel-history import occurs.
 4. **Useful memory:** summary reuse, first generation, refresh, empty output, and failure follow the three-day/recent-month rules. Successful summaries persist in summary.txt. An omitted summary model uses the base model; a configured summary model is used only for summarization. The repository's summary prompt is the default. Prompt or summary-model changes apply to the next generation without forcing a refresh or deleting history. Country filtering and instruction revision remain consistent throughout a turn.
 5. **Attachment paths:** for each of images, documents, and audio, an omitted preparation model sends the file to the main call. Configuring a model makes a separate preparation call and replaces that file with its actual text response inside the original attributed message. Categories can use different choices; originals stay stored, results are reused, and all calls count toward turn limits.
 6. **Controlled actions:** base respond.io permissions apply without business-specific tools. Knowledge-driven handoff uses the tool; unrecoverable execution errors use the harness path. Denied actions, private diagnostics, uncertain sends, and other exceptions follow their specified outcomes.
