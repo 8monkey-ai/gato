@@ -49,6 +49,17 @@ Durations use units `h`, `m`, `s` and `ms`, for example `12h35m` or `750ms`.
 
 `CONNECTIONS` is a comma-separated list of connection names (lowercase letters, digits and `_`). Each connection has variables with the prefix `CONNECTION_<NAME>_`, for example `CONNECTION_MAIN_TYPE`. A connection that is not in the list needs no credentials.
 
+#### respond.io (`TYPE=respondio`)
+
+| Variable               | Description                                                                                                     |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `API_TOKEN`            | Developer API access token (required).                                                                          |
+| `API_URL`              | API base URL. Default `https://api.respond.io/v2`.                                                              |
+| `AGENT_USER_ID`        | The respond.io user that represents the agent (required). Assignment to this user gives ownership to the agent. |
+| `WEBHOOK_SIGNING_KEYS` | Comma-separated signing keys, one for each respond.io webhook that points to the harness (required).            |
+
+In respond.io, add webhooks to `https://<host>/webhooks/<name>` for the events New Incoming Message, New Outgoing Message, Contact Assignee Updated, Conversation Opened and Conversation Closed. The harness rejects notifications with a wrong `X-Webhook-Signature`. Replies use the messaging route that respond.io selects. Internal notes become respond.io comments, and labels become contact tags.
+
 #### Telegram (`TYPE=telegram`)
 
 | Variable           | Description                                                                   |

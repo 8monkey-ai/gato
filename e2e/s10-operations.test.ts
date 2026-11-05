@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { launch, tempDir, waitFor } from "./support/app.ts";
 import { useTelegram } from "./support/fixture.ts";
-import { readState, telegramEnv } from "./support/setup.ts";
+import { readState } from "./support/setup.ts";
 
 const f = useTelegram();
 
@@ -15,7 +15,7 @@ test("§10 readiness is reported on the health route", async () => {
 });
 
 test("§10 missing country prevents startup", async () => {
-  const env = telegramEnv(f.gateway, f.telegram, { DATA_DIR: await tempDir() });
+  const env = { ...f.env(), DATA_DIR: await tempDir() };
   const { child, logs } = launch({ ...env, COUNTRY: "" });
   expect(await child.exited).toBe(1);
   await Bun.sleep(50);
@@ -23,7 +23,7 @@ test("§10 missing country prevents startup", async () => {
 });
 
 test("§10 unsupported country prevents startup", async () => {
-  const env = telegramEnv(f.gateway, f.telegram, { DATA_DIR: await tempDir() });
+  const env = { ...f.env(), DATA_DIR: await tempDir() };
   const { child, logs } = launch({ ...env, COUNTRY: "SG" });
   expect(await child.exited).toBe(1);
   await Bun.sleep(50);
@@ -33,9 +33,7 @@ test("§10 unsupported country prevents startup", async () => {
 test("§10 storage that is not writable prevents startup instead of using an empty history elsewhere", async () => {
   const blocked = join(await tempDir(), "file");
   await Bun.write(blocked, "not a folder");
-  const { child } = launch(
-    telegramEnv(f.gateway, f.telegram, { DATA_DIR: blocked }),
-  );
+  const { child } = launch({ ...f.env(), DATA_DIR: blocked });
   expect(await child.exited).toBe(1);
 });
 

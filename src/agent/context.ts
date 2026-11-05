@@ -28,15 +28,23 @@ function attribution(entry: MessageEntry) {
   return undefined;
 }
 
+function labelled(
+  label: string | undefined,
+  parts: ContentPart[],
+): ContentPart[] {
+  if (!label) return parts;
+  const [first, ...rest] = parts;
+  if (first?.type === "text") {
+    return [{ type: "text", text: `${label} ${first.text}` }, ...rest];
+  }
+  return [{ type: "text", text: label }, ...parts];
+}
+
 function messageToModel(
   entry: MessageEntry,
   render: RenderMessage,
 ): ModelMessage {
-  const label = attribution(entry);
-  const parts = render(entry);
-  const content = label
-    ? [{ type: "text" as const, text: label }, ...parts]
-    : parts;
+  const content = labelled(attribution(entry), render(entry));
   if (entry.role === "customer") return { role: "user", content };
   return { role: "assistant", content };
 }

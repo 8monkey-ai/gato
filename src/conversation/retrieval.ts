@@ -34,7 +34,7 @@ async function retrieveOne(
 async function retrievePending(conversation: Conversation, channel: Channel) {
   const pending = messages(conversation.entries)
     .flatMap((entry) => entry.attachments ?? [])
-    .filter((attachment) => !attachment.file && !attachment.retrievalError);
+    .filter((a) => a.source !== "" && !a.file && !a.retrievalError);
   for (const attachment of pending)
     await retrieveOne(conversation, channel, attachment);
 }

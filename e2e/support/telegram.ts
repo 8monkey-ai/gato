@@ -155,7 +155,3 @@ export class FakeTelegram {
     );
   }
 }
-
-export function startFakeTelegram() {
-  return new FakeTelegram();
-}

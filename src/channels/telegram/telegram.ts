@@ -4,6 +4,7 @@ import type { Env } from "../../config/env.ts";
 import { errorText } from "../../log.ts";
 import type { Channel, Inbox, OutgoingPart, SendResult } from "../channel.ts";
 import { registerChannelType } from "../channel.ts";
+import { download } from "../download.ts";
 import { customerEvent, operatorCommand } from "./parse.ts";
 
 function sendFailure(error: unknown): SendResult {
@@ -48,15 +49,13 @@ function listen(bot: Bot, inbox: Inbox, operatorChat: string | undefined) {
   });
 }
 
-async function download(bot: Bot, apiRoot: string, fileId: string) {
+async function retrieve(bot: Bot, apiRoot: string, fileId: string) {
   const file = await bot.api.getFile(fileId);
   if (!file.file_path) throw new Error("Telegram gave no file path.");
-  const url = `${apiRoot}/file/bot${bot.token}/${file.file_path}`;
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`File download failed with status ${response.status}.`);
-  }
-  return { data: new Uint8Array(await response.arrayBuffer()) };
+  const { data } = await download(
+    `${apiRoot}/file/bot${bot.token}/${file.file_path}`,
+  );
+  return { data };
 }
 
 function createTelegram(_name: string, env: Env): Channel {
@@ -81,7 +80,7 @@ function createTelegram(_name: string, env: Env): Channel {
       if (bot.isRunning()) await bot.stop();
     },
     send: (chat, part) => send(bot, chat, part),
-    retrieve: (fileId) => download(bot, apiRoot, fileId),
+    retrieve: (fileId) => retrieve(bot, apiRoot, fileId),
     typing: async (chat) => void (await bot.api.sendChatAction(chat, "typing")),
     ...(operatorChat && { notifyOperators: notify }),
   };

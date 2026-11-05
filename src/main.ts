@@ -1,3 +1,4 @@
+import "./channels/respondio/respondio.ts";
 import "./channels/telegram/telegram.ts";
 import { startApp } from "./app.ts";
 import { errorText, log } from "./log.ts";

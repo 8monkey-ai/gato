@@ -1,27 +1,5 @@
 import { join } from "node:path";
 
-import type { FakeGateway } from "./gateway.ts";
-import type { FakeTelegram } from "./telegram.ts";
-
-export function telegramEnv(
-  gateway: FakeGateway,
-  telegram: FakeTelegram,
-  extra: Record<string, string> = {},
-) {
-  return {
-    COUNTRY: "MY",
-    MODEL: "test/base",
-    OPENROUTER_API_KEY: "test-key",
-    OPENROUTER_BASE_URL: gateway.url,
-    CONNECTIONS: "tg",
-    CONNECTION_TG_TYPE: "telegram",
-    CONNECTION_TG_BOT_TOKEN: telegram.token,
-    CONNECTION_TG_API_ROOT: telegram.apiRoot,
-    DELIVERY_PAUSE: "10ms",
-    ...extra,
-  };
-}
-
 export interface StoredEntry {
   kind: string;
   role?: string;
