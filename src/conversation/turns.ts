@@ -1,5 +1,6 @@
 import { sleep } from "../delivery/outbox.ts";
 import { errorText, log } from "../log.ts";
+import { logFields } from "./store.ts";
 import type { Conversation } from "./store.ts";
 
 export type TurnKind = "reply" | "review" | "nudge";
@@ -47,8 +48,7 @@ export function createTurns(
     const done = runner(conversation, kind, controller.signal).catch(
       (error: unknown) =>
         log("error", "turn.crashed", {
-          connection: conversation.connection,
-          chat: conversation.chat,
+          ...logFields(conversation),
           error: errorText(error),
         }),
     );
@@ -87,5 +87,3 @@ export function createTurns(
     },
   };
 }
-
-export type Turns = ReturnType<typeof createTurns>;

@@ -69,7 +69,7 @@ export interface NoteEntry extends Base {
   byAgent?: boolean;
 }
 
-export interface TriggerEntry extends Base {
+interface TriggerEntry extends Base {
   kind: "trigger";
   text: string;
 }
@@ -77,7 +77,7 @@ export interface TriggerEntry extends Base {
 export type Entry =
   MessageEntry | ToolCallEntry | ToolResultEntry | NoteEntry | TriggerEntry;
 
-export type Assignee = "agent" | "human" | "none";
+type Assignee = "agent" | "human" | "none";
 
 export interface Ownership {
   assignee: Assignee;

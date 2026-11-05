@@ -11,9 +11,9 @@ import { isVisible } from "../conversation/record.ts";
 
 export type ContentPart = TextPart | FilePart;
 
-export type RenderMessage = (entry: MessageEntry) => ContentPart[];
+type RenderMessage = (entry: MessageEntry) => ContentPart[];
 
-export interface ContextOptions {
+interface ContextOptions {
   turn: string;
   includeTools: boolean;
   render: RenderMessage;

@@ -1,8 +1,8 @@
 import type { OutgoingPart } from "../channels/channel.ts";
 
-export type DeliverOutcome = "sent" | "stop";
+type DeliverOutcome = "sent" | "stop";
 
-export interface OutboxOptions {
+interface OutboxOptions {
   deliver: (part: OutgoingPart) => Promise<DeliverOutcome>;
   delayFor: (part: OutgoingPart, index: number) => number;
   beforeDelay?: () => void;

@@ -1,4 +1,4 @@
-export interface InstructionParts {
+interface InstructionParts {
   repository: string;
   skills: { name: string; description: string; path: string }[];
   today: string;

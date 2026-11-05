@@ -4,7 +4,7 @@ import { generateText } from "ai";
 import type { Attachment, Entry, MessageEntry } from "../conversation/entry.ts";
 import { messages } from "../conversation/record.ts";
 import type { Conversation } from "../conversation/store.ts";
-import { readText, writeText } from "../conversation/store.ts";
+import { logFields, readText, writeText } from "../conversation/store.ts";
 import { errorText, log } from "../log.ts";
 import { formatLocal, monthBefore } from "../time.ts";
 import type { Budget } from "./runner.ts";
@@ -108,8 +108,7 @@ export async function summaryForTurn(
     return { date: now, text };
   } catch (error) {
     log("warn", "summary.failed", {
-      connection: conversation.connection,
-      chat: conversation.chat,
+      ...logFields(conversation),
       error: errorText(error),
     });
     return undefined;

@@ -35,7 +35,7 @@ export function readMcpServers(env: Env, reserved: string[]) {
   });
 }
 
-export function toolSetOf(prefix: string, connection: McpConnection): ToolSet {
+function toolSetOf(prefix: string, connection: McpConnection): ToolSet {
   const entries = connection.definitions.map((definition) => [
     `${prefix}__${definition.name}`,
     mcpTool({

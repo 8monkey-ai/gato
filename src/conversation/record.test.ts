@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 
 import type { Entry } from "./entry.ts";
-import { awaitsReply, insertEntry, latestAgentActivityAt } from "./record.ts";
+import { awaitsReply, insertEntry, isAgentActivity } from "./record.ts";
 
 const message = (
   at: string,
@@ -28,7 +28,5 @@ test("only sent agent messages answer the customer", () => {
   expect(
     awaitsReply([message("1", "customer"), message("2", "agent", "sent")]),
   ).toBe(false);
-  expect(
-    latestAgentActivityAt([message("1", "agent", "failed")]),
-  ).toBeUndefined();
+  expect(isAgentActivity(message("1", "agent", "failed"))).toBe(false);
 });

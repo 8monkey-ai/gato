@@ -44,15 +44,6 @@ export function isAgentActivity(entry: Entry) {
   );
 }
 
-export function latestAgentActivityAt(entries: Entry[]) {
-  return entries
-    .filter(isAgentActivity)
-    .reduce<string | undefined>(
-      (latest, entry) => (latest && latest > entry.at ? latest : entry.at),
-      undefined,
-    );
-}
-
 export function awaitsReply(entries: Entry[]) {
   const visible = messages(entries).filter(isVisible);
   return visible.at(-1)?.role === "customer";

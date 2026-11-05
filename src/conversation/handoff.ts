@@ -3,11 +3,11 @@ import { errorText, log } from "../log.ts";
 import type { NoteType } from "./entry.ts";
 import { addNote } from "./notes.ts";
 import type { Conversation } from "./store.ts";
-import { save } from "./store.ts";
+import { logFields, save } from "./store.ts";
 
-export type HandoffKind = "out-of-scope" | "error" | "expired";
+type HandoffKind = "out-of-scope" | "error" | "expired";
 
-export interface HandoffRequest {
+interface HandoffRequest {
   kind: HandoffKind;
   reason: string;
   turn?: string;
@@ -44,10 +44,7 @@ async function notify(
     return;
   }
   if (!channel.nativeAssignment) {
-    log("warn", "operator.attention_needed", {
-      connection: conversation.connection,
-      chat: conversation.chat,
-    });
+    log("warn", "operator.attention_needed", logFields(conversation));
   }
 }
 
@@ -60,8 +57,7 @@ async function report(
     await action();
   } catch (error) {
     log("error", "handoff.report_failed", {
-      connection: conversation.connection,
-      chat: conversation.chat,
+      ...logFields(conversation),
       step,
       error: errorText(error),
     });
@@ -89,8 +85,7 @@ export async function handoff(
   if (!channel.nativeAssignment) conversation.state.assignee = "human";
   await save(conversation);
   log("info", "handoff.requested", {
-    connection: conversation.connection,
-    chat: conversation.chat,
+    ...logFields(conversation),
     kind,
   });
 }

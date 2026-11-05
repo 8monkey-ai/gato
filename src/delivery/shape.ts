@@ -1,7 +1,7 @@
 import type { OutgoingPart } from "../channels/channel.ts";
 import type { DeliverySettings } from "../config/settings.ts";
 
-export interface ChannelLimits {
+interface ChannelLimits {
   maxMessageLength: number;
   videoAttachments: boolean;
 }

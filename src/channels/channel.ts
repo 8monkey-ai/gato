@@ -17,6 +17,15 @@ export interface IncomingAttachment {
   description?: string;
 }
 
+export function categoryOf(
+  mediaType: string | undefined,
+): IncomingAttachment["category"] {
+  const top = mediaType?.split("/")[0];
+  return top === "image" || top === "audio" || top === "video"
+    ? top
+    : "document";
+}
+
 export interface ChannelMessage {
   ref: string;
   at: Date;

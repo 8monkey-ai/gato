@@ -1,4 +1,4 @@
-import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
+import { mkdir, readdir, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 
 import { type ChatState, type Entry, initialState } from "./entry.ts";
@@ -9,6 +9,10 @@ export interface Conversation {
   dir: string;
   entries: Entry[];
   state: ChatState;
+}
+
+export function logFields(conversation: Conversation) {
+  return { connection: conversation.connection, chat: conversation.chat };
 }
 
 const safeName = /^[A-Za-z0-9_-]+$/;
@@ -140,13 +144,6 @@ export async function readFile(
 ) {
   return new Uint8Array(
     await Bun.file(join(conversation.dir, relativePath)).arrayBuffer(),
-  );
-}
-
-export async function fileExists(path: string) {
-  return stat(path).then(
-    () => true,
-    () => false,
   );
 }
 

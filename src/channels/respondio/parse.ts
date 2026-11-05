@@ -6,6 +6,7 @@ import type {
   ChatEvent,
   IncomingAttachment,
 } from "../channel.ts";
+import { categoryOf } from "../channel.ts";
 
 const id = z.union([z.number(), z.string()]).transform(String);
 const text = z.string().nullish();
@@ -76,16 +77,13 @@ function fullName(person: {
   );
 }
 
-function categoryOf(
+function categoryFor(
   type: string,
   mediaType: string | undefined,
 ): IncomingAttachment["category"] {
   if (type === "image" || type === "sticker") return "image";
   if (type === "audio" || type === "video") return type;
-  const top = mediaType?.split("/")[0];
-  return top === "image" || top === "audio" || top === "video"
-    ? top
-    : "document";
+  return categoryOf(mediaType);
 }
 
 function attachmentsOf(
@@ -96,7 +94,7 @@ function attachmentsOf(
     const mediaType = file.mimeType ?? file.mime ?? undefined;
     return [
       {
-        category: categoryOf(file.type, mediaType),
+        category: categoryFor(file.type, mediaType),
         source: file.url,
         mediaType,
         name: file.fileName ?? undefined,

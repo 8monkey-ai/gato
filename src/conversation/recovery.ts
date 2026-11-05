@@ -3,13 +3,10 @@ import { log } from "../log.ts";
 import { addNote } from "./notes.ts";
 import { messages } from "./record.ts";
 import type { Conversation } from "./store.ts";
-import { save } from "./store.ts";
+import { logFields, save } from "./store.ts";
 
 async function recoverOne(conversation: Conversation, channel: Channel) {
-  const fields = {
-    connection: conversation.connection,
-    chat: conversation.chat,
-  };
+  const fields = logFields(conversation);
   for (const entry of messages(conversation.entries)) {
     if (entry.delivery !== "sending") continue;
     entry.delivery = "uncertain";

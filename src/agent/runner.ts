@@ -6,7 +6,7 @@ import type { EntryInput } from "../conversation/entry.ts";
 import { addNote } from "../conversation/notes.ts";
 import { awaitsReply, insertEntry } from "../conversation/record.ts";
 import type { Conversation } from "../conversation/store.ts";
-import { save } from "../conversation/store.ts";
+import { logFields, save } from "../conversation/store.ts";
 import type { TurnKind, TurnRunner } from "../conversation/turns.ts";
 import { log } from "../log.ts";
 import type { TurnResult } from "./reply.ts";
@@ -23,7 +23,7 @@ export interface TurnContext {
   tools: ToolSet;
 }
 
-export interface RunnerDeps {
+interface RunnerDeps {
   settings: Settings;
   channelOf(conversation: Conversation): Channel;
   model: LanguageModel;
@@ -38,18 +38,16 @@ export interface RunnerDeps {
     result: TurnResult,
     turn: string,
   ): Promise<void>;
-  nudgeInstruction: string;
 }
 
 function recorder(conversation: Conversation, turn: string) {
   return async (entry: EntryInput) => {
     if (entry.kind === "tool-call") {
-      const fields = {
-        connection: conversation.connection,
-        chat: conversation.chat,
+      log("info", "tool.called", {
+        ...logFields(conversation),
         turn,
-      };
-      log("info", "tool.called", { ...fields, tool: entry.tool });
+        tool: entry.tool,
+      });
     }
     insertEntry(conversation.entries, {
       ...entry,
@@ -80,7 +78,7 @@ async function attempt(
   const combined = AbortSignal.any([signal, limit]);
   const record = recorder(conversation, turn);
   if (kind === "nudge")
-    await record({ kind: "trigger", text: deps.nudgeInstruction });
+    await record({ kind: "trigger", text: deps.settings.nudges.instruction });
   try {
     const budget = { steps: deps.settings.limits.maxSteps, signal: combined };
     const context = await deps.prepare(conversation, turn, budget);
@@ -106,12 +104,7 @@ async function attempt(
 export function createTurnRunner(deps: RunnerDeps): TurnRunner {
   return async (conversation, kind, signal) => {
     const turn = crypto.randomUUID();
-    const fields = {
-      connection: conversation.connection,
-      chat: conversation.chat,
-      turn,
-      kind,
-    };
+    const fields = { ...logFields(conversation), turn, kind };
     log("info", "turn.started", fields);
     conversation.state.pendingReply = false;
     conversation.state.activeTurn = turn;

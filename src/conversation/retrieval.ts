@@ -3,7 +3,7 @@ import { errorText, log } from "../log.ts";
 import type { Attachment } from "./entry.ts";
 import { messages } from "./record.ts";
 import type { Conversation } from "./store.ts";
-import { save, saveFile } from "./store.ts";
+import { logFields, save, saveFile } from "./store.ts";
 
 function fileName(attachment: Attachment) {
   const extension = attachment.name?.match(/\.[A-Za-z0-9]{1,8}$/)?.[0] ?? "";
@@ -22,8 +22,7 @@ async function retrieveOne(
   } catch (error) {
     attachment.retrievalError = errorText(error);
     log("warn", "attachment.retrieval_failed", {
-      connection: conversation.connection,
-      chat: conversation.chat,
+      ...logFields(conversation),
       attachment: attachment.id,
       error: attachment.retrievalError,
     });

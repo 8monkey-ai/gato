@@ -5,7 +5,7 @@ export class DamagedHistory extends Error {}
 
 const key = (connection: string, chat: string) => `${connection}/${chat}`;
 
-export interface Damaged {
+interface Damaged {
   connection: string;
   chat: string;
   error: string;
@@ -44,7 +44,6 @@ export function createConversations(
     all() {
       return [...byKey.values()];
     },
-    damaged,
   };
 }
 

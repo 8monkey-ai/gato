@@ -3,9 +3,9 @@ import { log } from "../log.ts";
 import type { ChatState, MessageEntry } from "./entry.ts";
 import { findMessage, insertEntry, messages, moveEntry } from "./record.ts";
 import type { Conversation } from "./store.ts";
-import { save } from "./store.ts";
+import { logFields, save } from "./store.ts";
 
-export interface InboxDeps {
+interface InboxDeps {
   fail: (error: unknown) => void;
   conversation: (chat: string) => Conversation | undefined;
   retrieve: (conversation: Conversation) => void;
@@ -85,10 +85,7 @@ export function createInbox(deps: InboxDeps): Inbox {
       if (!conversation) return;
       const { added, assigned } = await apply(conversation, event);
       if (added) {
-        const fields = {
-          connection: conversation.connection,
-          chat: conversation.chat,
-        };
+        const fields = logFields(conversation);
         log("info", "message.recorded", {
           ...fields,
           message: added.id,

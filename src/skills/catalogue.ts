@@ -7,8 +7,6 @@ import { log } from "../log.ts";
 import { CountryMarkupError, filterCountry } from "./country.ts";
 import { headRevision, listFiles, readAt } from "./git.ts";
 
-export class InstructionsError extends Error {}
-
 export interface Skill {
   name: string;
   description: string;
@@ -80,12 +78,13 @@ async function readInstructions(
   country: Country,
 ) {
   if (!files.includes("AGENTS.md"))
-    throw new InstructionsError("The skills repository has no AGENTS.md.");
+    throw new Error("The skills repository has no AGENTS.md.");
   try {
     return filterCountry(await readAt(dir, revision, "AGENTS.md"), country);
   } catch (error) {
-    if (error instanceof CountryMarkupError)
-      throw new InstructionsError(`AGENTS.md: ${error.message}`);
+    if (error instanceof CountryMarkupError) {
+      throw new Error(`AGENTS.md: ${error.message}`, { cause: error });
+    }
     throw error;
   }
 }

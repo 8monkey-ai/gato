@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { parseNudgeSettings } from "../nudges/policy.ts";
 import type { Env } from "./env.ts";
 
-export const countries = ["MY", "PH"] as const;
+const countries = ["MY", "PH"] as const;
 export type Country = (typeof countries)[number];
 
 export type OwnershipPolicy = "assigned" | "shared" | "unrestricted";

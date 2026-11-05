@@ -2,7 +2,7 @@ import type { Channel, OutgoingPart, SendResult } from "../channels/channel.ts";
 import type { Delivery, MessageEntry } from "../conversation/entry.ts";
 import { insertEntry } from "../conversation/record.ts";
 import type { Conversation } from "../conversation/store.ts";
-import { save } from "../conversation/store.ts";
+import { logFields, save } from "../conversation/store.ts";
 import { sleep } from "../delivery/outbox.ts";
 import { errorText, log } from "../log.ts";
 
@@ -55,8 +55,7 @@ export function createDeliverer(
     if (result.status === "sent") entry.ref ??= result.ref;
     await save(conversation);
     const fields = {
-      connection: conversation.connection,
-      chat: conversation.chat,
+      ...logFields(conversation),
       turn,
       message: entry.id,
     };

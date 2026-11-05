@@ -1,12 +1,13 @@
 import type { Channel } from "../channels/channel.ts";
 import { handoff } from "../conversation/handoff.ts";
 import { addNote } from "../conversation/notes.ts";
+import { logFields } from "../conversation/store.ts";
 import type { Conversation } from "../conversation/store.ts";
 import { errorText, log } from "../log.ts";
 import type { NudgeSettings } from "./policy.ts";
 import { expiryDue, nudgeDue } from "./policy.ts";
 
-export interface NudgeDeps {
+interface NudgeDeps {
   settings: NudgeSettings;
   timezone: string;
   conversations: () => Conversation[];
@@ -28,10 +29,6 @@ function withinHours(settings: NudgeSettings, timezone: string, now: number) {
 function elapsed(ms: number) {
   const minutes = Math.floor(ms / 60_000);
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-}
-
-function fields(conversation: Conversation) {
-  return { connection: conversation.connection, chat: conversation.chat };
 }
 
 async function labelsOf(conversation: Conversation, channel: Channel) {
@@ -58,7 +55,7 @@ async function expire(
     labels = await labelsOf(conversation, channel);
   } catch (error) {
     log("warn", "expiry.labels_unavailable", {
-      ...fields(conversation),
+      ...logFields(conversation),
       error: errorText(error),
     });
     return false;
@@ -89,7 +86,10 @@ async function nudge(
     text: deps.settings.instruction,
     byAgent: true,
   });
-  log("info", "nudge.started", { ...fields(conversation), milestoneMs: due });
+  log("info", "nudge.started", {
+    ...logFields(conversation),
+    milestoneMs: due,
+  });
   deps.requestNudge(conversation);
 }
 
@@ -124,7 +124,7 @@ export function createNudges(deps: NudgeDeps) {
     for (const conversation of deps.conversations()) {
       await checkOne(deps, conversation, now).catch((error: unknown) =>
         log("warn", "nudge.check_failed", {
-          ...fields(conversation),
+          ...logFields(conversation),
           error: errorText(error),
         }),
       );

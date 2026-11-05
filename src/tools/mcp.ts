@@ -4,7 +4,7 @@ import { dynamicTool, jsonSchema } from "ai";
 
 import { errorText } from "../log.ts";
 
-export interface McpServerConfig {
+interface McpServerConfig {
   label: string;
   url: string;
   token?: string;
@@ -88,7 +88,7 @@ export async function connectMcp(config: McpServerConfig) {
 
 export type McpConnection = Awaited<ReturnType<typeof connectMcp>>;
 
-export interface ToolOptions {
+interface ToolOptions {
   description?: string;
   inputSchema: ObjectSchema;
   execute: (

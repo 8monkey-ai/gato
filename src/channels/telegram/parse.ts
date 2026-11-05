@@ -1,14 +1,7 @@
 import type { Message } from "grammy/types";
 
 import type { ChatEvent, IncomingAttachment } from "../channel.ts";
-
-function categoryOf(
-  mediaType: string | undefined,
-): IncomingAttachment["category"] {
-  const top = mediaType?.split("/")[0];
-  if (top === "image" || top === "audio" || top === "video") return top;
-  return "document";
-}
+import { categoryOf } from "../channel.ts";
 
 type Found = IncomingAttachment | undefined;
 

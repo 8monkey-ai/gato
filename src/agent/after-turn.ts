@@ -5,7 +5,7 @@ import type { Conversation } from "../conversation/store.ts";
 import type { TurnKind } from "../conversation/turns.ts";
 import type { TurnResult } from "./reply.ts";
 
-export interface AfterTurnDeps {
+interface AfterTurnDeps {
   channelOf: (conversation: Conversation) => Channel;
   eligible: (conversation: Conversation) => boolean;
 }

@@ -18,7 +18,7 @@ import type { Summary, SummaryDeps } from "./summary.ts";
 import { summaryForTurn } from "./summary.ts";
 import { builtinTools } from "./tools.ts";
 
-export interface PrepareDeps {
+interface PrepareDeps {
   settings: Settings;
   skills: Skills;
   summary: SummaryDeps;

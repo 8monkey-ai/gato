@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import type { Snapshot } from "../skills/catalogue.ts";
 
-export interface BuiltinToolOptions {
+interface BuiltinToolOptions {
   snapshot: Snapshot;
   handoff: (reason: string) => Promise<void>;
 }

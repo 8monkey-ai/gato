@@ -9,7 +9,7 @@ import type {
 } from "../../tools/mcp.ts";
 import { connectMcp, mcpTool } from "../../tools/mcp.ts";
 
-export interface RespondMcpSettings {
+interface RespondMcpSettings {
   url: string;
   token: string;
   permitted: string[];

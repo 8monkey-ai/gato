@@ -3,9 +3,9 @@ import { errorText, log } from "../log.ts";
 import type { NoteType } from "./entry.ts";
 import { insertEntry } from "./record.ts";
 import type { Conversation } from "./store.ts";
-import { save } from "./store.ts";
+import { logFields, save } from "./store.ts";
 
-export interface Note {
+interface Note {
   type: NoteType;
   text: string;
   turn?: string;
@@ -37,8 +37,7 @@ export async function addNote(
     .add(conversation.chat, note.text)
     .catch((error: unknown) =>
       log("warn", "note.native_failed", {
-        connection: conversation.connection,
-        chat: conversation.chat,
+        ...logFields(conversation),
         type: note.type,
         error: errorText(error),
       }),

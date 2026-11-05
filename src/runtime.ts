@@ -68,7 +68,6 @@ export function createRuntime(
     model: gateway(settings.model),
     prepare,
     afterTurn: createAfterTurn({ channelOf, eligible }),
-    nudgeInstruction: settings.nudges.instruction,
   });
   return {
     retrieve,

@@ -13,7 +13,7 @@ import { errorText } from "../log.ts";
 import { createDeliverer } from "./deliver.ts";
 import { generate } from "./generate.ts";
 
-export type Outcome =
+type Outcome =
   | "completed"
   | "skipped"
   | "superseded"
@@ -29,7 +29,7 @@ export interface TurnResult {
   uncertain?: boolean;
 }
 
-export interface ReplyRequest {
+interface ReplyRequest {
   conversation: Conversation;
   channel: Channel;
   turn: string;
@@ -43,7 +43,7 @@ export interface ReplyRequest {
   record: (entry: EntryInput) => Promise<void>;
 }
 
-export interface ReplyResult {
+interface ReplyResult {
   sent: number;
   undelivered: string[];
   error?: unknown;

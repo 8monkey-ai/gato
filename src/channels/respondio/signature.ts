@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-export function signatureOf(key: string, body: unknown) {
+function signatureOf(key: string, body: unknown) {
   return createHmac("sha256", key)
     .update(JSON.stringify(body))
     .digest("base64");

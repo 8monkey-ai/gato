@@ -3,7 +3,7 @@ import { isStepCount, streamText } from "ai";
 
 import type { EntryInput } from "../conversation/entry.ts";
 
-export interface GenerateOptions {
+interface GenerateOptions {
   model: LanguageModel;
   instructions: string;
   messages: ModelMessage[];
