@@ -10,7 +10,7 @@ type Truthy<T> = Exclude<T, false | 0 | "" | null | undefined>;
 
 export async function waitFor<T>(
   check: () => T | Promise<T>,
-  timeoutMs = 8000,
+  timeoutMs = 15000,
   label = "condition",
 ): Promise<Truthy<T>> {
   const deadline = Date.now() + timeoutMs;

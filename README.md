@@ -92,6 +92,7 @@ Each check makes at most one attempt per conversation. Before an action, the har
 | `API_TOKEN`            | Developer API access token (required).                                                                          |
 | `API_URL`              | API base URL. Default `https://api.respond.io/v2`.                                                              |
 | `AGENT_USER_ID`        | The respond.io user that represents the agent (required). Assignment to this user gives ownership to the agent. |
+| `CHANNEL_ID`           | Optional respond.io channel for all replies. Without it, respond.io selects the messaging route.                |
 | `WEBHOOK_SIGNING_KEYS` | Comma-separated signing keys, one for each respond.io webhook that points to the harness (required).            |
 
 The base respond.io MCP connection (optional) belongs to the same connection:

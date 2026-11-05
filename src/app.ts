@@ -2,7 +2,7 @@ import type { Inbox, RouteHandler } from "./channels/channel.ts";
 import type { EnvSource } from "./config/env.ts";
 import { readEnv } from "./config/env.ts";
 import type { Settings } from "./config/settings.ts";
-import { parseSettings } from "./config/settings.ts";
+import { configuredModels, parseSettings } from "./config/settings.ts";
 import { readConnections } from "./connections.ts";
 import type { Conversations } from "./conversation/conversations.ts";
 import {
@@ -14,6 +14,7 @@ import { recover } from "./conversation/recovery.ts";
 import type { Conversation } from "./conversation/store.ts";
 import { checkWritable, loadAll } from "./conversation/store.ts";
 import { errorText, log } from "./log.ts";
+import { verifyModels } from "./models.ts";
 import { createNudges } from "./nudges/scheduler.ts";
 import type { Channels, Runtime } from "./runtime.ts";
 import { createRuntime } from "./runtime.ts";
@@ -158,6 +159,7 @@ export async function startApp(
   const channels = readConnections(env);
   const { conversations, damaged } = await openStorage(settings.dataDir);
   const skills = await loadInstructions(settings);
+  await verifyModels(settings.gateway, configuredModels(settings));
   const sharedTools = await connectServers(
     readMcpServers(env, [...channels.keys()]),
   );

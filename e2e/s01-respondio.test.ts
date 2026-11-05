@@ -177,3 +177,54 @@ test("§1 operator attachments with captions are recorded and stay available to 
     await files.stop(true);
   }
 });
+
+test("§6 a configured respond.io messaging route replaces the platform's selected route", async () => {
+  f.gateway.reply({ text: "Routed" });
+  const app = await f.start({ CONNECTION_RIO_CHANNEL_ID: "555" });
+  await deliver(app.url, incoming("27", { type: "text", text: "Hi" }));
+  await waitFor(() => f.respond.sentTexts("27").length === 1);
+  const send = f.respond.calls.find(
+    (call) => call.path === "/contact/id:27/message",
+  )!;
+  expect(send.body).toEqual({
+    channelId: 555,
+    message: { type: "text", text: "Routed" },
+  });
+});
+
+test("§2 an uncertain send later confirmed by the channel updates the original record and appears once in the next turn", async () => {
+  f.gateway.reply({ text: "In flight" });
+  f.respond.fail({ path: /\/message$/, status: 502, drop: true });
+  const app = await f.start();
+  await deliver(app.url, incoming("28", { type: "text", text: "Hi" }));
+  await waitFor(async () =>
+    (await chat("28")).some((entry) => entry.delivery === "uncertain"),
+  );
+  expect(f.respond.sentTexts("28")).toHaveLength(1);
+  await deliver(
+    app.url,
+    outgoingEvent(
+      "28",
+      { type: "text", text: "In flight" },
+      { source: "api" },
+      { id: 4242 },
+    ),
+  );
+  const confirmed = await waitFor(async () =>
+    (await chat("28")).find(
+      (entry) => entry.role === "agent" && entry.delivery === "sent",
+    ),
+  );
+  expect(confirmed.ref).toBe("4242");
+  f.gateway.reply({ text: "Next" });
+  await deliver(app.url, incoming("28", { type: "text", text: "Thanks" }));
+  await waitFor(() => f.gateway.requests.length === 2);
+  expect(conversation(f.gateway.requests[1]!)).toEqual([
+    ["user", "Hi"],
+    ["assistant", "In flight"],
+    ["user", "Thanks"],
+  ]);
+  expect(
+    (await chat("28")).filter((entry) => entry.role === "agent"),
+  ).toHaveLength(2);
+});

@@ -115,6 +115,8 @@ function complete(script: ModelScript) {
   });
 }
 
+const models = ["test/base", "test/vision", "test/ears", "test/summary"];
+
 export function startFakeGateway() {
   const requests: ModelRequest[] = [];
   const streamEnds: number[] = [];
@@ -122,6 +124,8 @@ export function startFakeGateway() {
   const server = Bun.serve({
     port: 0,
     async fetch(request) {
+      if (request.method === "GET")
+        return Response.json({ data: models.map((id) => ({ id })) });
       const body = (await request.json()) as ModelRequest;
       requests.push(body);
       const script = await handler(body);

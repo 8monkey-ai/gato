@@ -57,3 +57,25 @@ test("§10 shutdown stops within the bound and preserves unfinished work for the
   await f.restart();
   await waitFor(() => f.telegram.sentTexts(1).includes("Answer after restart"));
 });
+
+test("§10 configured models are validated before readiness; omitted optional models are valid", async () => {
+  const { child, logs } = launch({
+    ...f.env(),
+    DATA_DIR: await tempDir(),
+    SUMMARY_MODEL: "test/unknown",
+  });
+  expect(await child.exited).toBe(1);
+  await Bun.sleep(50);
+  expect(logs.join("\n")).toContain(
+    "The AI gateway does not offer the models: test/unknown.",
+  );
+});
+
+test("§10 invalid response and work limits are rejected", async () => {
+  const { child } = launch({
+    ...f.env(),
+    DATA_DIR: await tempDir(),
+    TURN_MAX_STEPS: "0",
+  });
+  expect(await child.exited).toBe(1);
+});

@@ -58,6 +58,17 @@ function parseTimezone(env: Env) {
   return timezone;
 }
 
+function parseLimits(env: Env) {
+  const maxSteps = env.int("TURN_MAX_STEPS", 12);
+  const maxDurationMs = env.duration("TURN_MAX_DURATION", "2m");
+  if (maxSteps < 1 || maxDurationMs < 1) {
+    throw new Error(
+      "TURN_MAX_STEPS and TURN_MAX_DURATION must be greater than zero.",
+    );
+  }
+  return { maxSteps, maxDurationMs };
+}
+
 export function parseSettings(env: Env) {
   return {
     port: env.int("PORT", 3000),
@@ -87,10 +98,7 @@ export function parseSettings(env: Env) {
       document: env.optional("DOCUMENT_MODEL"),
       audio: env.optional("AUDIO_MODEL"),
     },
-    limits: {
-      maxSteps: env.int("TURN_MAX_STEPS", 12),
-      maxDurationMs: env.duration("TURN_MAX_DURATION", "2m"),
-    },
+    limits: parseLimits(env),
     delivery: parseDelivery(env),
     shutdownGraceMs: env.duration("SHUTDOWN_GRACE", "20s"),
     nudges: parseNudgeSettings(env),
@@ -98,3 +106,11 @@ export function parseSettings(env: Env) {
 }
 
 export type Settings = ReturnType<typeof parseSettings>;
+
+export function configuredModels(settings: Settings) {
+  const optional = [
+    settings.summaryModel,
+    ...Object.values(settings.preparationModels),
+  ];
+  return [settings.model, ...optional.filter((id) => id !== undefined)];
+}

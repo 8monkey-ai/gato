@@ -34,11 +34,12 @@ function outgoing(part: OutgoingPart) {
 
 async function send(
   client: Client,
+  route: number | undefined,
   chat: string,
   part: OutgoingPart,
 ): Promise<SendResult> {
   try {
-    const request = { message: outgoing(part) };
+    const request = { channelId: route, message: outgoing(part) };
     const { messageId } = await client.messaging.send(contact(chat), request);
     return { status: "sent", ref: String(messageId) };
   } catch (error) {
@@ -101,11 +102,20 @@ function readSettings(env: Env) {
     timeout: 15_000,
   });
   const agentUserId = env.string("AGENT_USER_ID");
-  return { client, signingKeys, agentUserId, mcp: readMcpSettings(env) };
+  const routed = env.optional("CHANNEL_ID") !== undefined;
+  const channelId = routed ? env.int("CHANNEL_ID", 0) : undefined;
+  return {
+    client,
+    signingKeys,
+    agentUserId,
+    mcp: readMcpSettings(env),
+    channelId,
+  };
 }
 
 function createRespondIo(name: string, env: Env): Channel {
-  const { client, signingKeys, agentUserId, mcp } = readSettings(env);
+  const { client, signingKeys, agentUserId, mcp, channelId } =
+    readSettings(env);
   let inbox: Inbox | undefined;
   let contactTools: ((chat: string) => ToolSet) | undefined;
   const route = webhook({ name, signingKeys, agentUserId, inbox: () => inbox });
@@ -122,7 +132,7 @@ function createRespondIo(name: string, env: Env): Channel {
       inbox = undefined;
       return Promise.resolve();
     },
-    send: (chat, part) => send(client, chat, part),
+    send: (chat, part) => send(client, channelId, chat, part),
     retrieve: download,
     notes: {
       add: async (chat, text) =>

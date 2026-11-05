@@ -88,11 +88,16 @@ test("§7 an unrecoverable error while agent-owned uses the harness path without
   const entries = await entriesWith("rio", "42", "error");
   expect(f.gateway.requests).toHaveLength(1);
   expect(f.respond.sentTexts("42")).toHaveLength(0);
-  expect(f.respond.tags.get("42")).toEqual(["handoff", "error"]);
+  expect(await waitFor(() => f.respond.tags.get("42"))).toEqual([
+    "handoff",
+    "error",
+  ]);
   expect(entries.find((entry) => entry.type === "error")?.text).toStartWith(
     "The agent could not answer (failed):",
   );
   expect(f.respond.comments("42")).toHaveLength(1);
+  await Bun.sleep(200);
+  expect(f.gateway.requests).toHaveLength(1);
 });
 
 test("§7 a failure of handoff reporting is logged without more handoffs", async () => {

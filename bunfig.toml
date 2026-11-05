@@ -22,7 +22,3 @@ maxWarnings = 0
 [fmt]
 # The tool sets the import order, so authors do not.
 sortImports = true
-
-[test]
-# End-to-end tests start the application as a process and wait for real timers.
-timeout = 30000

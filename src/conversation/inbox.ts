@@ -1,4 +1,5 @@
 import type { ChannelMessage, ChatEvent, Inbox } from "../channels/channel.ts";
+import { log } from "../log.ts";
 import type { ChatState, MessageEntry } from "./entry.ts";
 import { findMessage, insertEntry, messages, moveEntry } from "./record.ts";
 import type { Conversation } from "./store.ts";
@@ -83,6 +84,17 @@ export function createInbox(deps: InboxDeps): Inbox {
       const conversation = deps.conversation(event.chat);
       if (!conversation) return;
       const { added, assigned } = await apply(conversation, event);
+      if (added) {
+        const fields = {
+          connection: conversation.connection,
+          chat: conversation.chat,
+        };
+        log("info", "message.recorded", {
+          ...fields,
+          message: added.id,
+          role: added.role,
+        });
+      }
       if (added?.attachments?.length) deps.retrieve(conversation);
       if (added?.role === "customer") deps.customerWrote(conversation);
       else if (assigned) deps.assignedToAgent(conversation);

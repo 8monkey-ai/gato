@@ -15,12 +15,12 @@ test("§2 new customer input interrupts the reply: unsent paced parts stop and t
       ? { text: "Part one\n\nPart two\n\nPart three" }
       : { text: "Fresh answer" },
   );
-  await f.start({ DELIVERY_PAUSE: "400ms" });
+  await f.start({ DELIVERY_PAUSE: "1500ms" });
   f.telegram.customerMessage(1, { text: "First question" });
   await waitFor(() => f.telegram.sentTexts(1).length === 1);
   f.telegram.customerMessage(1, { text: "Second question" });
   await waitFor(() => f.telegram.sentTexts(1).length === 2);
-  await Bun.sleep(900);
+  await Bun.sleep(1600);
   expect(f.telegram.sentTexts(1)).toEqual(["Part one", "Fresh answer"]);
   const second = f.gateway.requests[1]!.messages.filter(
     (m) => m.role !== "system",
@@ -147,4 +147,24 @@ test("§2 conversations progress independently, one turn at a time each", async 
     (call) => call.method === "sendMessage",
   );
   expect(Math.abs(first!.at - second!.at)).toBeLessThan(400);
+});
+
+test("§8 local Telegram state survives restart: a paused conversation stays paused", async () => {
+  f.gateway.reply({ text: "Should wait" });
+  await f.start({ CONNECTION_TG_OPERATOR_CHAT_ID: String(operatorChat) });
+  f.telegram.customerMessage(operatorChat, { text: "/pause 12" });
+  await waitFor(
+    async () =>
+      (await readState(f.app.dataDir, "tg", "12").catch(() => undefined))
+        ?.assignee === "human",
+  );
+  await f.restart();
+  f.telegram.customerMessage(12, { text: "Hello after restart" });
+  await waitFor(async () =>
+    (await readChat(f.app.dataDir, "tg", "12")).some(
+      (entry) => entry.text === "Hello after restart",
+    ),
+  );
+  await Bun.sleep(400);
+  expect(f.gateway.requests).toHaveLength(0);
 });
