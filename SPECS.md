@@ -169,15 +169,15 @@ Deployment selects the base model, optional summary model, optional preparation 
 
 Delivery is configurable without application changes. The customer-service defaults are:
 
-| Option                                  | Default                                                                   | Alternatives                                |
-| --------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------- |
-| Message boundaries                      | Paragraphs                                                                | Whole reply or another configured boundary  |
-| Delivery timing                         | Completed parts sent as they become available                             | Delivery after the complete answer is ready |
-| Pacing                                  | Fixed pause of approximately 0.75 seconds before each message             | Typing-style pacing or no added delay       |
-| Typing-style pace, when selected        | First message immediate; later messages approximately one second per word | Another configured pace                     |
-| Final punctuation                       | One final full stop removed                                               | Original punctuation preserved              |
-| Approved company video links            | Video attachments                                                         | Text links                                  |
-| Text surrounding a converted video link | Replaced by the video                                                     | Separate text message                       |
+| Option                                  | Default                                                                   | Alternatives                          |
+| --------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------- |
+| Message boundary                        | Two newlines (`\n\n`), so each paragraph is one message                   | Another configured character sequence |
+| Pacing                                  | Typing-style pacing                                                       | No added delay                        |
+| Typing-style pace                       | First message immediate; later messages approximately one second per word | Another configured pace               |
+| Approved company video links            | Video attachments                                                         | Text links                            |
+| Text surrounding a converted video link | Replaced by the video                                                     | Separate text message                 |
+
+Each part is sent as soon as it is complete. Delivery never waits for the full answer. Parts keep their original punctuation.
 
 Delivery preserves message order, omits empty parts, and sends each part once. Pacing must not block generation or customer-message interruption. Failure stops remaining delivery and records which parts reached the customer. One delivery policy applies throughout a turn; changing configuration cannot replay delivered messages. Invalid settings are rejected with an actionable explanation.
 
