@@ -16,7 +16,7 @@ A conversation belongs to a configured channel connection and account. Contacts 
 
 Telegram connects through a configured bot, with each chat keeping its own history and reply destination. Both channels use the same history, attachment preparation, skills, generation, interruption, and nudge rules. Enabling Telegram does not require respond.io or its MCP connection.
 
-The conversation record includes incoming customer messages and everything sent by human operators, workflows, and the agent. In particular, messages sent directly by an operator in respond.io—including captions, images, documents, audio, video, and other attachments—are available to future agent turns. Recording continues while the conversation is agent-owned, human-owned, or unassigned, preserving sender attribution and attachment references.
+The conversation record includes incoming customer messages and everything sent by human operators, workflows, and the agent. In particular, messages sent directly by an operator in respond.io—including captions, images, documents, audio, video, and other attachments—are available to future agent turns. Recording continues whoever owns the conversation, preserving sender attribution and attachment references.
 
 Each enabled adapter receives messages, authenticates its notifications, and presents them to the shared conversation service. An adapter subscribes only to the platform notifications without which a requirement in this specification cannot be met. Platform state that arrives with those notifications is read from them. When the harness needs platform state at another time, it asks the platform. For respond.io, message notifications are sufficient. Accepted work is saved before acknowledging receipt. Repeated notifications must not duplicate messages or actions, and outgoing messages must not trigger another answer. Malformed notifications are logged without running the agent; irrelevant notifications are ignored.
 
@@ -55,19 +55,13 @@ A nudge's artificial prompt uses user-side input to request continuation, but is
 
 ## 2. Ownership and response eligibility
 
-Ownership determines whether a conversation is recorded only or also answered. The policy is configurable:
+Ownership determines whether a conversation is recorded only or also answered. The agent answers when the conversation is assigned to the configured agent user or to no one. This specification calls such a conversation agent-owned. A conversation assigned to a human operator is human-owned and is history only.
 
-| Policy                  | Agent answers when                                                   |
-| ----------------------- | -------------------------------------------------------------------- |
-| Assigned only — default | The conversation is explicitly assigned to the configured agent user |
-| Shared inbox            | The conversation is unassigned or assigned to that user              |
-| Unrestricted            | Regardless of assignment                                             |
-
-Under the default policy, unassigned and human-owned conversations are history only. When the conversation returns to the agent, the agent answers at the next eligible customer message; the return itself sends no reply.
+When the conversation returns to the agent, the agent answers at the next eligible customer message; the return itself sends no reply.
 
 Two events have deliberately different effects on a reply already in progress:
 
-- **A human takes ownership:** the current reply finishes, including its remaining parts. Under the default policy, no further replies or nudges start until reassignment to the agent. Recording of the human's contributions continues.
+- **A human takes ownership:** the current reply finishes, including its remaining parts. No further replies or nudges start until the conversation is agent-owned again. Recording of the human's contributions continues.
 - **A new customer message arrives:** the reply is interrupted and its remaining parts stop, including messages waiting for a pacing delay. Superseded generation and pending actions stop where possible. A send already in progress may still arrive; its outcome remains recorded.
 
 After an interruption, the next eligible turn uses the messages already delivered together with all newly received customer input. It must not replay delivered parts or continue the obsolete unsent remainder. Further customer input follows the same interruption rule.
@@ -76,7 +70,7 @@ The conversation the agent sees matches the conversation the customer sees: what
 
 Small timing differences are acceptable while a send is already on its way. Later channel information confirming what was sent updates the record and the view used for subsequent turns. Original event times and the distinction between confirmed and uncertain delivery remain preserved.
 
-Only one turn runs per conversation at a time. Other conversations can progress independently. Closing a conversation stops nudges and preserves its record; reopening reuses the same history and follows the current ownership policy. Closure alone sends no reply and generates no summary.
+Only one turn runs per conversation at a time. Other conversations can progress independently. Closing a conversation stops nudges and preserves its record; reopening reuses the same history, and the agent answers again only if the conversation is agent-owned. Closure alone sends no reply and generates no summary.
 
 ## 3. Messages and attachment preparation
 
@@ -242,7 +236,7 @@ The policy runs in this order:
 
 1. **Expiry:** eligibility depends on the configured threshold, activity requirement, and exemptions. Eligible expiry records elapsed time, applies handoff and expired labels, and stops nudges after success.
 2. **Nudge selection:** the earliest milestone that has passed without qualifying agent activity at or beyond it is selected, subject to the per-check limit. Milestones are measured from the customer message, not from the previous nudge.
-3. **Execution:** an internal “Nudge” note is written before the agent is asked to continue. Under the default policy that note advances agent activity even if the attempt fails. The artificial prompt never advances customer activity.
+3. **Execution:** an internal “Nudge” note is written before the agent is asked to continue. With the default nudge settings, that note advances agent activity even if the attempt fails. The artificial prompt never advances customer activity.
 
 Without customer activity, neither nudges nor expiry occur. Unavailable exemption labels cause a logged problem and skipped expiry for that check, with no dedicated retry; ordinary periodic checks continue. Individual failures remain isolated and unfinished work is deferred. Restart and policy changes must not reset activity or repeat committed attempts.
 
