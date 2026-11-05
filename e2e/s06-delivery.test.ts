@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import { launch, logEvents, waitFor } from "./support/app.ts";
+import { launch, logEvents, tempDir, waitFor } from "./support/app.ts";
 import { useTelegram } from "./support/fixture.ts";
 import { readChat } from "./support/setup.ts";
 
@@ -193,14 +193,10 @@ test("§6 surrounding text can be sent separately, and video links can stay text
 });
 
 test("§6 invalid delivery settings are rejected with an actionable explanation", async () => {
+  const dataDir = await tempDir();
   const { child, logs } = launch({
-    COUNTRY: "MY",
-    MODEL: "m",
-    OPENROUTER_API_KEY: "k",
-    DATA_DIR: "/tmp/gato-invalid",
-    CONNECTIONS: "tg",
-    CONNECTION_TG_TYPE: "telegram",
-    CONNECTION_TG_BOT_TOKEN: "1:x",
+    ...f.env(),
+    DATA_DIR: dataDir,
     DELIVERY_PACING: "fast",
   });
   expect(await child.exited).toBe(1);

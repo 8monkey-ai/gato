@@ -59,6 +59,7 @@ export function parseSettings(env: Env) {
   return {
     port: env.int("PORT", 3000),
     dataDir: env.string("DATA_DIR"),
+    skillsDir: env.string("SKILLS_DIR"),
     country: env.oneOf("COUNTRY", countries),
     timezone: parseTimezone(env),
     ownershipPolicy: env.oneOf<OwnershipPolicy>(

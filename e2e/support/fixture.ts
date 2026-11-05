@@ -5,9 +5,11 @@ import { startApp } from "./app.ts";
 import type { FakeGateway } from "./gateway.ts";
 import { startFakeGateway } from "./gateway.ts";
 import { agentUserId, FakeRespondIo, signingKey } from "./respondio.ts";
+import { createSkillsRepo } from "./skills.ts";
 import { FakeTelegram } from "./telegram.ts";
 
 export interface Harness {
+  skillsDir: string;
   gateway: FakeGateway;
   telegram: FakeTelegram;
   respond: FakeRespondIo;
@@ -50,6 +52,7 @@ export function baseEnv(harness: Harness, connections: Connection[]) {
     OPENROUTER_API_KEY: "test-key",
     OPENROUTER_BASE_URL: harness.gateway.url,
     DELIVERY_PAUSE: "10ms",
+    SKILLS_DIR: harness.skillsDir,
     ...connectionEnv(harness, connections),
   };
 }
@@ -60,7 +63,8 @@ export function useHarness(
 ) {
   const harness = {} as Harness;
   let lastEnv: Record<string, string> = {};
-  beforeEach(() => {
+  beforeEach(async () => {
+    harness.skillsDir = await createSkillsRepo();
     harness.gateway = startFakeGateway();
     harness.telegram = new FakeTelegram();
     harness.respond = new FakeRespondIo();

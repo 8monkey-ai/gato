@@ -31,6 +31,20 @@ The application reads its configuration from environment variables. It writes al
 
 Durations use units `h`, `m`, `s` and `ms`, for example `12h35m` or `750ms`.
 
+### Skills and instructions
+
+| Variable     | Description                                               |
+| ------------ | --------------------------------------------------------- |
+| `SKILLS_DIR` | Mounted git checkout of the skills repository (required). |
+
+The harness reads committed files at `HEAD`, so each turn keeps the revision it started with. The external deployment process updates the checkout. The repository must have `AGENTS.md` at its root (the repository instructions) and skill folders that each hold a `SKILL.md` in the [Agent Skills](https://agentskills.io/specification) format. The agent reads skills with the built-in `read_skill` tool. It can read only files inside skill folders. `/health` lists skill problems (invalid, duplicate or blocked skills).
+
+Country markup: `my[...]` and `ph[...]` for short text, and `:::my` / `:::ph` blocks that end with `:::`. Only the `COUNTRY` content and common content reach the agent.
+
+### Handoff
+
+The agent hands off with the built-in `handoff_to_colleague` tool. The harness hands off by itself when a turn fails or times out while the agent owns the conversation. Both write an internal note and apply the labels `handoff` and `out-of-scope` (tool) or `handoff` and `error` (harness). On respond.io, workflows then pick the operator. On Telegram, the conversation pauses until `/resume`.
+
 ### Delivery
 
 | Variable                      | Default      | Alternatives                                                       |

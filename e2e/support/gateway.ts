@@ -24,7 +24,7 @@ export interface ModelRequest {
   tools?: { function: { name: string } }[];
 }
 
-type Handler = (request: ModelRequest) => ModelScript;
+type Handler = (request: ModelRequest) => ModelScript | Promise<ModelScript>;
 
 function chunk(delta: Record<string, unknown>, finish: string | null = null) {
   const body = {
@@ -119,7 +119,7 @@ export function startFakeGateway() {
     async fetch(request) {
       const body = (await request.json()) as ModelRequest;
       requests.push(body);
-      const script = handler(body);
+      const script = await handler(body);
       if (script.delayMs) await Bun.sleep(script.delayMs);
       if (script.status)
         return Response.json(
@@ -168,4 +168,15 @@ export function systemText(request: ModelRequest) {
     .filter((message) => message.role === "system")
     .map(messageText)
     .join("\n");
+}
+
+export function toolResults(request: ModelRequest) {
+  return request.messages
+    .filter((message) => message.role === "tool")
+    .map((message) => String(message.content));
+}
+
+export function afterTools(first: ModelScript, then: ModelScript) {
+  return (request: ModelRequest) =>
+    request.messages.at(-1)?.role === "tool" ? then : first;
 }

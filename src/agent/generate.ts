@@ -55,6 +55,8 @@ export async function generate(options: GenerateOptions) {
     stopWhen: isStepCount(options.maxSteps),
     abortSignal: options.signal,
     maxRetries: 0,
+    // The stream reports errors; the default handler prints request bodies with customer data.
+    onError: () => undefined,
   });
   for await (const part of result.stream) {
     if (part.type === "text-delta") options.onText(part.text);
