@@ -48,7 +48,9 @@ export async function connectMcp(config: McpServerConfig) {
     (client ??= await createMCPClient({
       transport: { type: "http", url: config.url, headers },
     }));
-  const { tools } = await (await open()).listTools();
+  const { tools } = await (
+    await open()
+  ).listTools({ options: { timeout: 30_000 } });
   const missing = config.permitted.filter(
     (name) => !tools.some((tool) => tool.name === name),
   );

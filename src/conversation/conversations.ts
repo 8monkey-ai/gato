@@ -1,7 +1,7 @@
 import type { Conversation } from "./store.ts";
 import { isSafeName, newConversation } from "./store.ts";
 
-export class DamagedHistory extends Error {}
+export class ChatUnavailable extends Error {}
 
 const key = (connection: string, chat: string) => `${connection}/${chat}`;
 
@@ -27,11 +27,14 @@ export function createConversations(
   );
   return {
     get(connection: string, chat: string) {
-      if (!isSafeName(chat))
-        throw new Error(`Unsafe chat identifier for connection ${connection}.`);
+      if (!isSafeName(chat)) {
+        throw new ChatUnavailable(
+          `Unsafe chat identifier for connection ${connection}.`,
+        );
+      }
       const id = key(connection, chat);
       if (damagedKeys.has(id))
-        throw new DamagedHistory(
+        throw new ChatUnavailable(
           `The history of ${id} is damaged. Repair its chat folder.`,
         );
       let conversation = byKey.get(id);

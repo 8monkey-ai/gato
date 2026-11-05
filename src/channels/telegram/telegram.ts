@@ -61,7 +61,9 @@ async function retrieve(bot: Bot, apiRoot: string, fileId: string) {
 function createTelegram(_name: string, env: Env): Channel {
   const apiRoot = env.string("API_ROOT", "https://api.telegram.org");
   const operatorChat = env.optional("OPERATOR_CHAT_ID");
-  const bot = new Bot(env.string("BOT_TOKEN"), { client: { apiRoot } });
+  const bot = new Bot(env.string("BOT_TOKEN"), {
+    client: { apiRoot, timeoutSeconds: 60 },
+  });
   const notify = async (chat: string, text: string) => {
     if (operatorChat)
       await bot.api.sendMessage(operatorChat, `Chat ${chat}: ${text}`);

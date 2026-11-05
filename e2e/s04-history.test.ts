@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
-import { tempDir, waitFor } from "./support/app.ts";
+import { logEvents, tempDir, waitFor } from "./support/app.ts";
 import { useTelegram } from "./support/fixture.ts";
 import { conversation } from "./support/gateway.ts";
 import { readChat, writeChat } from "./support/setup.ts";
@@ -71,9 +71,12 @@ test("§4 damaged histories are reported while other conversations continue", as
   f.gateway.reply({ text: "Fine" });
   const app = await f.start({ DATA_DIR: dataDir });
   const health = (await (await fetch(`${app.url}/health`)).json()) as {
-    damagedHistories: { chat: string }[];
+    damagedHistories: number;
   };
-  expect(health.damagedHistories.map((item) => item.chat)).toEqual(["4"]);
+  expect(health.damagedHistories).toBe(1);
+  expect(
+    logEvents(app.logs, "history.damaged").map((item) => item.chat),
+  ).toEqual(["4"]);
   f.telegram.customerMessage(4, { text: "Lost?" });
   f.telegram.customerMessage(5, { text: "Other" });
   await waitFor(() => f.telegram.sentTexts(5).length === 1);

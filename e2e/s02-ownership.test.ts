@@ -168,3 +168,11 @@ test("§8 local Telegram state survives restart: a paused conversation stays pau
   await Bun.sleep(400);
   expect(f.gateway.requests).toHaveLength(0);
 });
+
+test("§1 an operator command with an unsafe chat identifier is rejected without stopping the harness", async () => {
+  f.gateway.reply({ text: "Still running" });
+  await f.start({ CONNECTION_TG_OPERATOR_CHAT_ID: String(operatorChat) });
+  f.telegram.customerMessage(operatorChat, { text: "/pause ../../etc" });
+  f.telegram.customerMessage(13, { text: "Hello" });
+  await waitFor(() => f.telegram.sentTexts(13).length === 1);
+});

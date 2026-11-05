@@ -9,7 +9,7 @@ bun install
 bun start
 ```
 
-The application reads its configuration from environment variables. It writes all conversation data to `DATA_DIR`. The health route `GET /health` gives readiness (status 200 when ready, 503 when not ready) and lists damaged histories.
+The application reads its configuration from environment variables. It writes all conversation data to `DATA_DIR`. The health route `GET /health` gives readiness (status 200 when ready, 503 when not ready), the number of damaged histories, skill problems and the time of the last nudge check. The logs name each damaged history.
 
 ## Configuration
 

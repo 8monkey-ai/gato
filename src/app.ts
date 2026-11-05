@@ -6,8 +6,8 @@ import { configuredModels, parseSettings } from "./config/settings.ts";
 import { readConnections } from "./connections.ts";
 import type { Conversations } from "./conversation/conversations.ts";
 import {
+  ChatUnavailable,
   createConversations,
-  DamagedHistory,
 } from "./conversation/conversations.ts";
 import { createInbox } from "./conversation/inbox.ts";
 import { recover } from "./conversation/recovery.ts";
@@ -54,7 +54,7 @@ function inboxFor(
       try {
         return conversations.get(connection, chat);
       } catch (error) {
-        if (!(error instanceof DamagedHistory)) throw error;
+        if (!(error instanceof ChatUnavailable)) throw error;
         log("error", "history.event_not_recorded", {
           connection,
           chat,
@@ -171,7 +171,7 @@ export async function startApp(
   const health = async () => ({
     ready,
     connections: [...channels.keys()],
-    damagedHistories: damaged,
+    damagedHistories: damaged.length,
     skillProblems: await skills
       .problems()
       .catch((error: unknown) => [errorText(error)]),
