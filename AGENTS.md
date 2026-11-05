@@ -9,7 +9,7 @@
 - Do not change the spec to justify the implementation. Keep the spec and implementation consistent.
 - Stay within the requested scope.
 - When the spec is silent, allows more than one reading, or asks for something a platform cannot do, choose the behavior that best keeps the intent of the spec with the least new code and configuration. For a platform limit, use the closest behavior that keeps the requirement's intent and the fallback rules of `SPECS.md`, and write the limit in `README.md`.
-- Keep configuration minimal. Add only the configuration options that `SPECS.md` describes, with the names, accepted values, and defaults it gives. Add an option beyond the spec only when the implementation cannot work without it, and put a comment next to its definition in the configuration file that states why it is necessary. Use the simplest configuration format that can hold the settings; prefer environment variables.
+- Make a value configurable when the spec asks for it, or when the people who operate the system will probably need a different value. Otherwise, use a fixed value. Use the configuration format the project already uses. If the project has no format yet, use the one that is easiest to operate, for example environment variables.
 
 ## Design
 
@@ -30,9 +30,8 @@ Apply to every non-trivial change. These constrain design, not formatting.
 - Choose the simplest implementation that fully meets the current requirements. Avoid speculative abstractions, configuration, and indirection. Omit steps that aren't needed: do not compute, read, or store values that nothing depends on. Prefer simple, correct approaches over premature optimization when the input is small.
 - Grow the system in layers. Start from the smallest version that works end to end, and add each new capability on top of a product that already works. Never trade a working product for unfinished complexity.
 - Keep components modular and concerns clearly separated.
-- Before writing code by hand, check whether a language built-in, the standard library, an installed dependency, or a well-maintained package already does it. Read its docs and types instead of assuming what it cannot do.
+- Before you write code for a problem or an external integration, look for a language built-in, the standard library, an installed dependency, an official SDK, or a widely used library. Read its docs and types instead of assuming what it cannot do. Use it when it is maintained and covers the need. Write your own code when the need is small and the options are unmaintained, heavy, or a bad fit.
 - Adding a dependency to delete boilerplate is a good trade, even when the hand-written version would only be a few lines. Small amounts of custom code still have to be read, tested, and maintained; a library that is already solving this problem for others does not.
-- For each external integration, use its official SDK or its most widely used maintained library.
 - Question whether a new type, wrapper, or class is needed at all. If the same behavior is expressible with a plain value, an existing type, or a function, do that instead. Introduce a struct only when it removes real ceremony rather than adding it.
 - Make architectural decisions for the long term. Do not accept a stopgap that only works for now and is meant to be replaced later.
 - Work in small, reviewable increments. Do not mix behavior change with refactoring in the same step.
@@ -44,7 +43,7 @@ Apply to every non-trivial change. These constrain design, not formatting.
 - Do not export symbols that are only used internally.
 - Let the language's type inference do the work where it can. Omit explicit type annotations when inference yields the same type.
 - Do not leak persistence shapes, DTOs, framework types, or transport formats across a boundary. Convert at the boundary.
-- Keep persistent state minimal. Store data only in the files and folders that `SPECS.md` names, and keep each fact in one place. Derive state from the stored record instead of storing it again in another file. Add a file only when the implementation cannot work without it, and put a comment where the file is defined that states why it is necessary.
+- Keep stored state minimal. Store each fact in one place and derive other values from it. Do not store copies.
 - Adding a variant must not touch a config schema, a route table, a shared switch, or a validation list. If it does, the seam is in the wrong place. Before calling the work done, name what an unrelated variant would have to edit.
 - Keep IO-near adapters as thin shells with no decision logic, so core behavior is testable without UI, network, filesystem, or devices.
 - Modules expose only what callers need. Representation, IO details, and invariant enforcement stay hidden.
@@ -52,20 +51,20 @@ Apply to every non-trivial change. These constrain design, not formatting.
 
 ## Testing
 
-The project has two levels of tests. Both run in `bun check`.
+The project has two levels of tests. The project's check command runs both. `README.md` gives the commands and the test layout.
 
 ### Unit tests
 
 - Purpose: fast feedback that each module compiles, runs, and does what its code intends.
-- Put them next to the code as `*.test.ts`. Test one module through its exported functions.
+- Put them next to the code, with the project's test naming convention. Test one module through its public interface.
 - Keep them fast and isolated.
 
 ### End-to-end tests
 
 - Purpose: prove that the requirements in `SPECS.md` are implemented correctly, including their edge cases and the acceptance journeys.
-- Put them in the top-level `e2e/` folder. Name each test after the requirement it checks and its `SPECS.md` section.
-- Treat the application as a black box. Start it as a process with environment variables and a temporary data folder. Use only its external interfaces: HTTP routes, the data folder, and the network calls it makes. Do not import its modules.
-- Replace each external service (channel platforms, model gateway, MCP servers) with a fake HTTP server that the test controls. A fake records the calls it receives, so the test can check what the application sent.
+- Put them in one top-level folder. Name each test after the requirement it checks and its `SPECS.md` section.
+- Treat the application as a black box. Start it the way it runs in production, with isolated configuration and storage. Use only its external interfaces. Do not import its modules.
+- Replace each external service with a fake that the test controls. A fake records the calls it receives, so the test can check what the application sent.
 - Every requirement and edge case in `SPECS.md` has at least one end-to-end test. When a requirement changes, change its test in the same step.
 
 ### Rules for both levels
@@ -92,4 +91,4 @@ Before you open a pull request, review the whole change in three passes, in this
 
 ### Run the checks
 
-Before you report work done, and before each commit, run `bun check`.
+Before you report work done, and before each commit, run the project's check command. `README.md` names it.

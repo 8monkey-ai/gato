@@ -32,7 +32,6 @@ Each adapter declares which features it supports. Missing platform features must
 | Assignment and open/closed state        | State is held in the chat folder. New conversations start open and agent-owned; operators can pause and resume them locally, using the same ownership rules                                                                                                                                 |
 | Internal notes and labels               | These remain private in the chat folder, including nudge activity, handoff reasons, and expiry exemptions; they are never sent to the customer                                                                                                                                              |
 | Human routing or operator notifications | Handoff is recorded locally, subsequent agent replies and nudges pause until explicitly resumed, and logs indicate that operator attention is needed. A configured operator notification destination receives the notification; assignment to a human is never claimed without confirmation |
-| Contact merges                          | Conversations with different contact identifiers remain separate; the harness does not combine their histories                                                                                                                                                                              |
 
 Native channel capabilities take precedence when available. A supported feature that fails still follows its failure policy; it is not silently treated as unsupported. Missing remote state does not block nudge readiness when the complete authoritative state is held locally.
 
@@ -83,20 +82,18 @@ Only one turn runs per conversation at a time. Other conversations can progress 
 
 Ordinary message text, captions, and supplied descriptions stay with the message. For each supported attachment category, deployment can independently configure a preparation model:
 
-| Category                         | Optional model's task                                                 |
-| -------------------------------- | --------------------------------------------------------------------- |
-| Images, including image stickers | Read the image and describe it as text|
-| Documents, including PDFs        | Read the document and return its textual content or interpretation    |
-| Audio, including voice notes     | Transcribe the audio as text                                          |
+| Category                         | Optional model's task                                              |
+| -------------------------------- | ------------------------------------------------------------------ |
+| Images, including image stickers | Read the image and describe it as text                             |
+| Documents, including PDFs        | Read the document and return its textual content or interpretation |
+| Audio, including voice notes     | Transcribe the audio as text                                       |
 
 The same rule applies to all three categories:
 
-- **No preparation model configured for that category:** the original file stays in its original message and the participant's original role, and is attached to the main generation call, with no extra model call for that attachment. The harness does not describe it, convert it to text, or move it to another role.
-- **Preparation model configured:** the attachment goes to that model first, in a separate call that is independent of the conversation: the call contains only the file, as user-side input, and the category's task. Its actual text response replaces the file in the original message within the main prompt, in the participant's original role. Accompanying text, original attribution, time, and the stored attachment reference remain intact. This is a representation of the same message, not a new user or assistant message.
+- **No preparation model configured for that category:** the original file is attached to the main generation call, with no extra model call for that attachment.
+- **Preparation model configured:** the attachment goes to that model first. Its actual text response replaces the file in the original message within the main prompt. Accompanying text, original attribution, time, and the stored attachment reference remain intact. This is a representation of the same message, not a new user or assistant message.
 
 These choices are independent: an operator can, for example, transcribe audio separately while passing images and documents directly to the main model. They apply to customer, operator, and workflow attachments while preserving the original participant's role. Preparation calls count toward the turn's response/work limits.
-
-Some main models and gateways accept files only in user-side messages. With such a model, an operator or workflow attachment in a category without a preparation model cannot reach the main model in its assistant-side role. This is a processing failure under the rule below, for the turn that receives the attachment and for every later turn whose context includes it: the turn fails visibly, and the file is never dropped, moved to the user side, or converted to text without a configured preparation model. Deployments that expect operator or workflow attachments configure preparation models for those categories. Startup reports each category in which this failure can occur.
 
 Original files remain stored in either mode. Preparation results are saved with their source attachments for reuse in later turns, distinguishing original participant text from model-produced interpretation. A preparation failure, unusable response, or main model unable to handle a directly attached file is a processing failure; content is never invented and the processing path does not silently change.
 
