@@ -72,6 +72,11 @@ export function parseSettings(env: Env) {
       baseURL: env.optional("OPENROUTER_BASE_URL"),
     },
     model: env.string("MODEL"),
+    preparationModels: {
+      image: env.optional("IMAGE_MODEL"),
+      document: env.optional("DOCUMENT_MODEL"),
+      audio: env.optional("AUDIO_MODEL"),
+    },
     limits: {
       maxSteps: env.int("TURN_MAX_STEPS", 12),
       maxDurationMs: env.duration("TURN_MAX_DURATION", "2m"),

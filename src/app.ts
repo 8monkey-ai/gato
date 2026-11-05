@@ -1,6 +1,11 @@
+import type { OpenRouterProvider } from "@openrouter/ai-sdk-provider";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 
 import { createAfterTurn } from "./agent/after-turn.ts";
+import type {
+  PreparationModels,
+  PreparedCategory,
+} from "./agent/attachments.ts";
 import { createPreparer } from "./agent/prepare.ts";
 import { createTurnRunner } from "./agent/runner.ts";
 import type { Channel, RouteHandler } from "./channels/channel.ts";
@@ -28,6 +33,14 @@ import { createSkills } from "./skills/catalogue.ts";
 
 type Channels = Map<string, Channel>;
 
+function preparationModels(settings: Settings, gateway: OpenRouterProvider) {
+  const models: PreparationModels = {};
+  for (const [category, id] of Object.entries(settings.preparationModels)) {
+    if (id) models[category as PreparedCategory] = { id, model: gateway(id) };
+  }
+  return models;
+}
+
 function createRuntime(settings: Settings, channels: Channels, skills: Skills) {
   const channelOf = (conversation: Conversation) =>
     channels.get(conversation.connection) as Channel;
@@ -47,6 +60,7 @@ function createRuntime(settings: Settings, channels: Channels, skills: Skills) {
         byAgent: true,
       }),
     connectionTools: () => Promise.resolve({}),
+    preparation: preparationModels(settings, gateway),
   });
   const runner = createTurnRunner({
     settings,

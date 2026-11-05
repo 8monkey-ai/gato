@@ -180,3 +180,17 @@ export function afterTools(first: ModelScript, then: ModelScript) {
   return (request: ModelRequest) =>
     request.messages.at(-1)?.role === "tool" ? then : first;
 }
+
+export function contentTypes(message: ModelRequest["messages"][number]) {
+  return Array.isArray(message.content)
+    ? (message.content as { type: string }[]).map((part) => part.type)
+    : ["text"];
+}
+
+export function mainRequests(gateway: FakeGateway) {
+  return gateway.requests.filter((request) => request.stream);
+}
+
+export function preparationRequests(gateway: FakeGateway) {
+  return gateway.requests.filter((request) => !request.stream);
+}

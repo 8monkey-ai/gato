@@ -40,13 +40,23 @@ function labelled(
   return [{ type: "text", text: label }, ...parts];
 }
 
+// Chat completion APIs drop files in assistant messages, so assistant-side files travel in a user-side carrier.
 function messageToModel(
   entry: MessageEntry,
   render: RenderMessage,
-): ModelMessage {
-  const content = labelled(attribution(entry), render(entry));
-  if (entry.role === "customer") return { role: "user", content };
-  return { role: "assistant", content };
+): ModelMessage[] {
+  const label = attribution(entry);
+  const content = labelled(label, render(entry));
+  if (entry.role === "customer") return [{ role: "user", content }];
+  const files = content.filter((part) => part.type === "file");
+  const text = content.filter((part) => part.type === "text");
+  const assistant: ModelMessage = { role: "assistant", content: text };
+  if (files.length === 0) return [assistant];
+  const carrier = `[Files shared in the previous message by ${label ?? "the agent"}]`;
+  return [
+    assistant,
+    { role: "user", content: [{ type: "text", text: carrier }, ...files] },
+  ];
 }
 
 function toolCallToModel(entry: ToolCallEntry): ModelMessage {
@@ -104,11 +114,11 @@ function included(
 function toModel(
   entry: Exclude<Entry, NoteEntry>,
   render: RenderMessage,
-): ModelMessage {
+): ModelMessage[] {
   if (entry.kind === "message") return messageToModel(entry, render);
-  if (entry.kind === "tool-call") return toolCallToModel(entry);
-  if (entry.kind === "tool-result") return toolResultToModel(entry);
-  return { role: "user", content: entry.text };
+  if (entry.kind === "tool-call") return [toolCallToModel(entry)];
+  if (entry.kind === "tool-result") return [toolResultToModel(entry)];
+  return [{ role: "user", content: entry.text }];
 }
 
 export function toModelMessages(entries: Entry[], options: ContextOptions) {
@@ -117,5 +127,5 @@ export function toModelMessages(entries: Entry[], options: ContextOptions) {
     .filter((entry): entry is Exclude<Entry, NoteEntry> =>
       included(entry, options, answered),
     )
-    .map((entry) => toModel(entry, options.render));
+    .flatMap((entry) => toModel(entry, options.render));
 }

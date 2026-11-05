@@ -1,10 +1,14 @@
 import type { ToolSet } from "ai";
 
 import type { Settings } from "../config/settings.ts";
-import type { MessageEntry } from "../conversation/entry.ts";
 import type { Conversation } from "../conversation/store.ts";
 import type { Skills } from "../skills/catalogue.ts";
-import type { ContentPart } from "./context.ts";
+import type { PreparationModels } from "./attachments.ts";
+import {
+  createRenderer,
+  loadDirectFiles,
+  prepareAttachments,
+} from "./attachments.ts";
 import { toModelMessages } from "./context.ts";
 import { composeInstructions, today } from "./instructions.ts";
 import type { Budget, TurnContext } from "./runner.ts";
@@ -20,17 +24,14 @@ export interface PrepareDeps {
     turn: string,
   ) => Promise<void>;
   connectionTools: (conversation: Conversation) => Promise<ToolSet>;
-}
-
-function renderText(entry: MessageEntry): ContentPart[] {
-  return [{ type: "text", text: entry.text ?? "" }];
+  preparation: PreparationModels;
 }
 
 export function createPreparer(deps: PrepareDeps) {
   return async (
     conversation: Conversation,
     turn: string,
-    _budget: Budget,
+    budget: Budget,
   ): Promise<TurnContext> => {
     const snapshot = await deps.skills.current();
     await deps.retrieve(conversation);
@@ -41,10 +42,18 @@ export function createPreparer(deps: PrepareDeps) {
       timezone: deps.settings.timezone,
       profile: conversation.state.profile,
     });
-    const messages = toModelMessages(conversation.entries, {
+    const entries = conversation.entries;
+    await prepareAttachments(conversation, entries, deps.preparation, budget);
+    const files = await loadDirectFiles(
+      conversation,
+      entries,
+      deps.preparation,
+    );
+    const render = createRenderer(files, deps.preparation);
+    const messages = toModelMessages(entries, {
       turn,
       includeTools: true,
-      render: renderText,
+      render,
     });
     const builtin = builtinTools({
       snapshot,
