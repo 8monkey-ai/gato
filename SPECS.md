@@ -6,7 +6,7 @@ The harness lets an agent and human operators serve the same customer, with a sh
 
 The harness is a single TypeScript application running on Bun, using the Vercel AI SDK and a stateless AI gateway such as OpenRouter. Conversation management, channel adapters, history, skills, agent execution, delivery, and nudges are distinct internal responsibilities. External tools connect through configurable MCP servers.
 
-Channel adapters handle their platform's accounts, incoming messages, the platform state that the harness needs, attachments, delivery, and operator notifications. Platform-specific behavior, including respond.io behavior, belongs within its adapter. An additional or replacement channel requires its own adapter, without rewriting history, skills, agent execution, or nudge logic. Operators enable one or more available channel adapters and their account connections through configuration; disabled connections require no credentials or running services.
+Channel adapters handle their platform's accounts, incoming messages, the platform state that the harness needs, attachments, delivery, and handoff where the platform supports it. Platform-specific behavior, including respond.io behavior, belongs within its adapter. An additional or replacement channel requires its own adapter, without rewriting history, skills, agent execution, or nudge logic. Operators enable one or more available channel adapters and their account connections through configuration; disabled connections require no credentials or running services.
 
 This specification is the source of truth for required product behavior and architecture, and the reference for development, acceptance, and future changes. Integration details follow the upstream [respond.io documentation](https://developers.respond.io/), [Telegram Bot API documentation](https://core.telegram.org/bots/api), and [MCP documentation](https://modelcontextprotocol.io/docs/getting-started/intro).
 
@@ -26,14 +26,12 @@ History follows original sent-time order. A delayed message belongs at its origi
 
 Each adapter declares which features it supports. Missing platform features must not prevent ordinary conversations or be mistaken for integration failures. The following fallbacks apply, including for a standard Telegram bot connection:
 
-| Unavailable channel feature             | Behavior                                                                                                                                                                                                                                                                                    |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Operator or workflow message events     | The record includes all messages the adapter can observe and its own sends, without waiting for or inventing unavailable events. Telegram does not require an operator inbox or operator-message listener                                                                                   |
-| Assignment and open/closed state        | No platform holds this state, so the harness keeps it in the chat folder. New conversations start open and agent-owned; operators can pause and resume them locally, using the same ownership rules                                                                                         |
-| Internal notes and labels               | These remain private in the chat folder, including nudge activity and handoff reasons; they are never sent to the customer                                                                                                                                                                  |
-| Human routing or operator notifications | Handoff is recorded locally, subsequent agent replies and nudges pause until explicitly resumed, and logs indicate that operator attention is needed. A configured operator notification destination receives the notification; assignment to a human is never claimed without confirmation |
+| Unavailable channel feature         | Behavior                                                                                                                                                                                                  |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Operator or workflow message events | The record includes all messages the adapter can observe and its own sends, without waiting for or inventing unavailable events. Telegram does not require an operator inbox or operator-message listener |
+| Internal notes                      | These remain private in the chat folder, including nudge activity; they are never sent to the customer                                                                                                    |
 
-Native channel capabilities take precedence when available. A supported feature that fails still follows its failure policy; it is not silently treated as unsupported. Missing remote state does not block nudge readiness when the complete authoritative state is held locally.
+Native channel capabilities take precedence when available. A supported feature that fails still follows its failure policy; it is not silently treated as unsupported. On a channel with no assignment, nudge readiness does not wait for remote state.
 
 ### Message classification
 
@@ -55,7 +53,7 @@ A nudge's artificial prompt uses user-side input to request continuation, but is
 
 ## 2. Ownership and response eligibility
 
-Ownership determines whether a conversation is recorded only or also answered. The agent answers when the conversation is assigned to the configured agent user or to no one. This specification calls such a conversation agent-owned. A conversation assigned to a human operator is human-owned and is history only.
+Ownership determines whether a conversation is recorded only or also answered. The agent answers when the conversation is assigned to the configured agent user or to no one. This specification calls such a conversation agent-owned. A conversation assigned to a human operator is human-owned and is history only. On a channel with no assignment, every conversation counts as assigned to no one.
 
 When the conversation returns to the agent, the agent answers at the next eligible customer message; the return itself sends no reply.
 
@@ -70,7 +68,7 @@ The conversation the agent sees matches the conversation the customer sees: what
 
 Small timing differences are acceptable while a send is already on its way. Later channel information confirming what was sent updates the record and the view used for subsequent turns. Original event times and the distinction between confirmed and uncertain delivery remain preserved.
 
-Only one turn runs per conversation at a time. Other conversations can progress independently. Closing a conversation stops nudges and preserves its record; reopening reuses the same history, and the agent answers again only if the conversation is agent-owned. Closure alone sends no reply and generates no summary.
+Only one turn runs per conversation at a time. Other conversations can progress independently.
 
 ## 3. Messages and attachment preparation
 
@@ -103,7 +101,7 @@ Conversation data resides in a dedicated folder that can be mounted outside the 
 
 The harness stores only facts that it cannot learn again: the record itself, delivery outcomes, attachment preparation results, summaries, and state that no platform holds. It derives other values, such as pending work and the latest customer and agent activity, from the record. It reads state that a platform holds from that platform when needed, and does not store a copy of it. Each stored fact is stored once.
 
-History and attachments remain stored indefinitely. Deletion requires an explicit operator request. Closing, reopening, reassignment, interruption, and summarization never delete the record. Generated, delivered, and uncertain output remain distinguishable.
+History and attachments remain stored indefinitely. Deletion requires an explicit operator request. Reassignment, interruption, and summarization never delete the record. Generated, delivered, and uncertain output remain distinguishable.
 
 The harness loads existing chat folders on startup. Storage must be available and writable before work is accepted; a storage problem must not cause a silent switch to an empty history elsewhere. Concurrent activity must not lose records. Damaged or incomplete histories are reported while unaffected conversations continue.
 
@@ -196,7 +194,7 @@ There are two handoff paths:
 | Knowledge or skill instructions require human help                       | The agent calls the built-in handoff tool | An English reason is saved internally; handoff and out-of-scope labels are applied |
 | An unrecoverable conversation error prevents an answer while agent-owned | The harness acts directly                 | An internal explanation is saved; handoff and error labels are applied             |
 
-Both paths use the active channel adapter to notify operators according to that channel’s configured handoff policy. For respond.io, workflows select the human operator. The error path must work without another model call or agent-invoked tool. Skills provide any customer-facing handoff wording. A handoff tool acknowledgement is context for the agent, not an automatic customer message.
+Handoff exists only on channels that support it. For respond.io, the labels start workflows that select the human operator. On a channel without handoff, the agent gets no handoff tool, and the error path saves and logs its internal explanation. A handoff never stops agent replies by itself. Only the ownership rule in §2 does. The error path must work without another model call or agent-invoked tool. Skills provide any customer-facing handoff wording. A handoff tool acknowledgement is context for the agent, not an automatic customer message.
 
 A recoverable tool error can be returned to the agent for correction within its limits. Missing essential instructions, unusable configuration, or exhausted response/work limits stop the turn. Raw errors stay out of customer messages. Failure of handoff reporting is logged without recursively attempting more handoffs.
 
@@ -226,7 +224,7 @@ Operators can configure nudges without application changes. Defaults are:
 | Nudge instruction                                       | “Nudge” asks the agent to continue                                                                           |
 | Failed nudge                                            | Internal “Nudge failed” explanation, no automatic error handoff                                              |
 
-Only open, agent-owned conversations with reconciled activity are eligible. Nudges resume after startup or a gap only once the latest customer and agent activity is established; incomplete reconciliation prevents premature nudges. Ownership and activity are checked again before any action.
+Only agent-owned conversations with reconciled activity are eligible. Nudges resume after startup or a gap only once the latest customer and agent activity is established; incomplete reconciliation prevents premature nudges. Ownership and activity are checked again before any action.
 
 The policy runs in this order:
 
@@ -237,13 +235,13 @@ Without customer activity, no nudges occur. Individual failures remain isolated 
 
 ## 9. Agent tools and permissions
 
-The built-in tools are **read skills and references**, restricted to approved repository material, and **hand off to a colleague**, with the behavior above. They remain available independently of external MCP connections.
+The built-in tools are **read skills and references**, restricted to approved repository material, and **hand off to a colleague**, with the behavior above, on channels that support handoff. They remain available independently of external MCP connections.
 
 Operators can connect MCP servers, configure authentication, and choose permitted tools. Naming conflicts must not make tool selection ambiguous. A valid negative business result differs from an unavailable or failed tool. Failed access must never produce invented results or a claim that an action succeeded.
 
 ### Base respond.io MCP connection
 
-The respond.io MCP connection belongs to base harness configuration, alongside the respond.io channel adapter. It connects over HTTP to a self-hosted respond.io MCP server at a configured address. The harness authenticates to that server with a static bearer token from deployment configuration; no interactive sign-in is required. Running and updating the server is outside the harness. Configuration controls its enabled state, server address, bearer token, permitted tools, editable fields, labels, and status changes independently of any business-specific servers. Its contact-specific tools are available only to conversations on the corresponding respond.io connection, not Telegram conversations. The defaults below apply when the connection is enabled.
+The respond.io MCP connection belongs to base harness configuration, alongside the respond.io channel adapter. It connects over HTTP to a self-hosted respond.io MCP server at a configured address. The harness authenticates to that server with a static bearer token from deployment configuration; no interactive sign-in is required. Running and updating the server is outside the harness. Configuration controls its enabled state, server address, bearer token, permitted tools, editable fields, and labels independently of any business-specific servers. Its contact-specific tools are available only to conversations on the corresponding respond.io connection, not Telegram conversations. The defaults below apply when the connection is enabled.
 
 | Agent action                   | Default permission                                                                      |
 | ------------------------------ | --------------------------------------------------------------------------------------- |
@@ -251,7 +249,6 @@ The respond.io MCP connection belongs to base harness configuration, alongside t
 | Add internal notes             | Current conversation                                                                    |
 | Add labels                     | Handoff and out-of-scope; additional labels require configuration                       |
 | Edit contact fields            | Name and preferred language, only when explicitly supplied or confirmed by the customer |
-| Change conversation status     | Disabled until explicitly enabled with permitted changes                                |
 | Other fields or provider tools | Disabled until explicitly enabled, including phone/email and custom-field edits         |
 
 Profile changes require explicit customer input or confirmation, never inference. Permissions can expand the allowed actions but never their scope beyond the current account/contact or the connected account's own authority. Disallowed actions are rejected without being applied. Harness-managed handoff and error paths follow their own policies, including system-applied error labels.
@@ -262,7 +259,7 @@ These are provider-supplied tools; the harness owns the connection and permissio
 
 Each instance serves one configured country and may enable several channel/account connections, with exclusive access to its persistent conversation storage. The application runs as a container on any suitable service. Hosting, releases, credentials, network setup, backups, and restoration belong to the external container/storage platform. The harness reads restored chat folders when storage is reattached and needs no built-in backup service or dedicated administration interface.
 
-Deployment configuration covers enabled channel adapters and accounts, their capability fallbacks and optional operator notifications, MCP connections, the skills mount, country, base and optional summary models, attachment preparation models, summary prompt, response/work limits, persistent storage, delivery, and nudge policy. Dates and schedules default to UTC, with a configurable timezone applied consistently to today's date, summaries, and operating hours. Country does not implicitly select timezone; timezone changes do not rewrite event times or reset inactivity.
+Deployment configuration covers enabled channel adapters and accounts, their capability fallbacks, MCP connections, the skills mount, country, base and optional summary models, attachment preparation models, summary prompt, response/work limits, persistent storage, delivery, and nudge policy. Dates and schedules default to UTC, with a configurable timezone applied consistently to today's date, summaries, and operating hours. Country does not implicitly select timezone; timezone changes do not rewrite event times or reset inactivity.
 
 Readiness requires validation of enabled integrations, instructions, country, configured models, limits, and writable storage. An omitted summary model is valid and selects the base model. Omitted attachment-preparation models are valid and select direct file input for their categories. Disabled channels or MCP connections require neither credentials nor availability; a deployment can replace respond.io entirely. Unavailable dependencies, incomplete history recovery, and nudge readiness are visible to operators. Logs connect the customer message, agent work, tool action, and delivery while protecting credentials and personal information.
 
@@ -272,9 +269,9 @@ Shutdown stops new work, allows safe completion within a configured bound, and p
 
 1. **Shared service and classification:** a customer writes, a human takes over and shares text/media, and the conversation returns to the agent. Every contribution remains attributed and available. Incoming content is user-side; operator/workflow content is attributed assistant-side; agent echoes appear once. Tool activity and internal records remain distinct and outgoing events never create reply loops.
 2. **Different interruptions:** reassignment to a human lets the current reply finish. New customer input stops unsent parts, including paced messages. The next eligible turn sees the latest known customer-visible conversation in the same order, including any already-in-flight message later confirmed as sent. Cancelled drafts do not appear as delivered, and earlier output is not replayed; minor transmission timing differences are tolerated and reconciled.
-3. **Lasting history:** restart, external restoration, and closure/reopening preserve the complete chat.txt, summary.txt when generated, attachments, preparation results, and unfinished work. Delayed messages retain original chronology. Migration remains external; prepared history is not treated as new work and no automatic launch-time channel-history import occurs.
+3. **Lasting history:** restart and external restoration preserve the complete chat.txt, summary.txt when generated, attachments, preparation results, and unfinished work. Delayed messages retain original chronology. Migration remains external; prepared history is not treated as new work and no automatic launch-time channel-history import occurs.
 4. **Useful memory:** summary reuse, first generation, refresh, empty output, and failure follow the three-day/recent-month rules. Successful summaries persist in summary.txt. An omitted summary model uses the base model; a configured summary model is used only for summarization. The repository's summary prompt is the default. Prompt or summary-model changes apply to the next generation without forcing a refresh or deleting history. Country filtering and instruction revision remain consistent throughout a turn.
 5. **Attachment paths:** for each of images, documents, and audio, an omitted preparation model sends the file to the main call. Configuring a model makes a separate preparation call and replaces that file with its actual text response inside the original attributed message. Categories can use different choices; originals stay stored, results are reused, and all calls count toward turn limits.
 6. **Controlled actions:** base respond.io permissions apply without business-specific tools. Knowledge-driven handoff uses the tool; unrecoverable execution errors use the harness path. Denied actions, private diagnostics, uncertain sends, and other exceptions follow their specified outcomes.
 7. **Configurable service:** model/work limits, delivery options, timezone, and nudge settings change through deployment configuration. Defaults produce no nudge at minute 34 after agent activity at minute 6, but allow one at minute 35. Configuration changes never duplicate committed actions.
-8. **Channel independence:** respond.io and Telegram each work alone or simultaneously through configuration. Histories, routing, ownership, and provider-specific tools remain isolated by connection. Telegram handles messages, attachments, interruptions, summaries, and nudges without requiring operator-message events or respond.io services. Missing assignment, notes, labels, and handoff routing use the defined local fallbacks; unsupported delivery features degrade without losing content or duplicating sends. Local state survives restart, paused conversations stay paused, and disabled connections require no credentials or service availability. Further adapters can be added without changing shared conversation, history, skill, or agent policies.
+8. **Channel independence:** respond.io and Telegram each work alone or simultaneously through configuration. Histories, routing, ownership, and provider-specific tools remain isolated by connection. Telegram handles messages, attachments, interruptions, summaries, and nudges without requiring operator-message events or respond.io services. Missing notes and handoff use the defined fallbacks; unsupported delivery features degrade without losing content or duplicating sends. Disabled connections require no credentials or service availability. Further adapters can be added without changing shared conversation, history, skill, or agent policies.
