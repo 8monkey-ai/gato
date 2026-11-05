@@ -10,6 +10,7 @@
 - Stay within the requested scope.
 - When the spec is silent, allows more than one reading, or asks for something a platform cannot do, choose the behavior that best keeps the intent of the spec with the least new code and configuration. For a platform limit, use the closest behavior that keeps the requirement's intent and the fallback rules of `SPECS.md`, and write the limit in `README.md`.
 - Make a value configurable when the spec asks for it, or when the people who operate the system will probably need a different value. Otherwise, use a fixed value. Use the configuration format the project already uses. If the project has no format yet, use the one that is easiest to operate, for example environment variables.
+- Name each configuration value after the system it configures. An operator should be able to tell from the name alone which integration a value belongs to.
 
 ## Design
 
@@ -43,7 +44,8 @@ Apply to every non-trivial change. These constrain design, not formatting.
 - Do not export symbols that are only used internally.
 - Let the language's type inference do the work where it can. Omit explicit type annotations when inference yields the same type.
 - Do not leak persistence shapes, DTOs, framework types, or transport formats across a boundary. Convert at the boundary.
-- Keep stored state minimal. Store each fact in one place and derive other values from it. Do not store copies.
+- Keep stored state minimal. Store a fact only when no other source can give it again. Other sources are an external system, the stored record, and a value that you can derive. Read state that an external system owns from that system when you need it. Do not keep a local copy that can become out of date. Store each fact in one place, and derive other values from it. Before you add a stored field, name what is lost without it.
+- Keep integrations with outside systems as small as the requirements allow. Each integration point adds surface to secure and maintain, so add one only when a requirement cannot be met without it.
 - Adding a variant must not touch a config schema, a route table, a shared switch, or a validation list. If it does, the seam is in the wrong place. Before calling the work done, name what an unrelated variant would have to edit.
 - Keep IO-near adapters as thin shells with no decision logic, so core behavior is testable without UI, network, filesystem, or devices.
 - Modules expose only what callers need. Representation, IO details, and invariant enforcement stay hidden.
@@ -85,7 +87,7 @@ Nothing is done until it has been reviewed and checked. Review first, then run t
 
 Before you open a pull request, review the whole change in three passes, in this order. Fix what a pass finds before you start the next pass.
 
-1. **Simplification.** Remove code, files, configuration, and state that the requirements do not need. Unify decisions that are written in more than one place. Replace custom code with built-ins or installed libraries. Make names and structure clear. This pass does not change behavior.
+1. **Simplification.** Remove code, files, configuration, integrations, and stored state that the requirements do not need. Unify decisions that are written in more than one place. Replace custom code with built-ins or installed libraries. Make names and structure clear. This pass does not change behavior.
 2. **Performance.** Find work that grows without need: repeated reads or parses of a whole record, calls in sequence that can run at the same time, concurrency without a limit, network calls without a timeout, and timers that keep the process alive. Fix only problems that occur at a realistic load. Do not add caches, indirection, or other complexity for loads that do not occur, and do not optimize code that is fast enough.
 3. **Security.** Check every trust boundary: authentication of incoming requests, validation of external input, file paths built from external values, the scope of tool permissions, and secrets or personal data in logs, errors, and customer messages. When a permission cannot be enforced, refuse it.
 
