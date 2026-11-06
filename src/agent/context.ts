@@ -21,6 +21,8 @@ function placeholder(attachment: Attachment, userSide: boolean): string {
     return `[${what}, interpreted by a model: ${attachment.prepared.text}]`;
   if (attachment.retrievalError)
     return `[${what}: the file could not be retrieved, its content is not available]`;
+  if (attachment.preparationError)
+    return `[${what}: the file could not be processed, its content is not available]`;
   if (!directCategories.has(attachment.category))
     return `[${what}: unsupported file type, its content is not available]`;
   if (!userSide)
@@ -34,6 +36,7 @@ async function attachmentPart(
 ): Promise<UserPart[]> {
   const direct =
     !attachment.prepared &&
+    !attachment.preparationError &&
     attachment.file &&
     directCategories.has(attachment.category);
   if (!direct || !attachment.file)

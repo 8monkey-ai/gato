@@ -22,6 +22,8 @@ export interface Attachment {
   /** Path of the stored original, relative to the chat folder. */
   file?: string;
   retrievalError?: string;
+  /** A failed preparation is not repeated. Later turns show the file as unavailable. */
+  preparationError?: string;
   prepared?: { text: string; model: string };
 }
 

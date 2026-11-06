@@ -1,5 +1,6 @@
 import { generateText, type LanguageModel } from "ai";
 
+import { WorkLimitError } from "../agent/models.ts";
 import type { Channel } from "../channels/channel.ts";
 import { errorText, log } from "../log.ts";
 import type { Attachment, MessageEntry } from "../record/entries.ts";
@@ -45,7 +46,13 @@ async function prepare(
 ): Promise<Attachment> {
   const category = attachment.category as PreparedCategory;
   const modelId = preparation.models[category];
-  if (!modelId || !attachment.file || attachment.prepared) return attachment;
+  if (
+    !modelId ||
+    !attachment.file ||
+    attachment.prepared ||
+    attachment.preparationError
+  )
+    return attachment;
   const data = await chat.readAttachment(attachment.file);
   const mediaType = attachment.mime ?? "application/octet-stream";
   const { text } = await generateText({
@@ -90,7 +97,14 @@ export async function prepareAttachments(options: {
     for (const [index, attachment] of [...entry.attachments].entries()) {
       const stored = await retrieve(chat, channel, entry, index, attachment);
       await replace(chat, entry, index, attachment, stored);
-      const prepared = await prepare(chat, stored, preparation, signal);
+      const prepared = await prepare(chat, stored, preparation, signal).catch(
+        async (error: unknown) => {
+          if (signal.aborted || error instanceof WorkLimitError) throw error;
+          const failed = { ...stored, preparationError: errorText(error) };
+          await replace(chat, entry, index, stored, failed);
+          throw error;
+        },
+      );
       await replace(chat, entry, index, stored, prepared);
     }
   }

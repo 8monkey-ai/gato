@@ -93,7 +93,7 @@ test("§3 attachments: a configured model prepares the file, its text replaces t
   ]);
 });
 
-test("§3 attachments: a preparation failure is a processing failure and nothing is invented", async () => {
+test("§3 attachments: a preparation failure is a processing failure, nothing is invented, and later turns go on without the file", async () => {
   const { telegram, gateway, dataDir } = await startHarness({
     env: { IMAGE_PREPARATION_MODEL: visionModel },
     models: [visionModel],
@@ -122,6 +122,11 @@ test("§3 attachments: a preparation failure is a processing failure and nothing
   ).toMatchObject([
     { file: expect.stringMatching(/^attachments\//) as string },
   ]);
+
+  telegram.push(52, { text: "hello?" });
+  await until(() => telegram.sent().length === 1);
+  expect(gateway.callsFor(visionModel)).toHaveLength(1);
+  expect(mainCalls(gateway)[0]).toContain("the file could not be processed");
 });
 
 test("§3 attachments: video is recorded and identified as unsupported; failed retrieval stays visible", async () => {

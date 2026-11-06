@@ -28,8 +28,8 @@ function dueMilestone(chat: Chat, settings: NudgeSettings): number | undefined {
   );
 }
 
-function minutes(ms: number): string {
-  return `${Math.round(ms / 60_000)} minutes`;
+function duration(ms: number): string {
+  return ms % 60_000 ? `${ms / 1000} seconds` : `${ms / 60_000} minutes`;
 }
 
 /** Checks ownership and activity again right before the nudge, then commits it with a note. */
@@ -46,7 +46,7 @@ function confirmNudge(
     await addNote(chat, channel, {
       author: "agent",
       kind: "nudge",
-      text: `Nudge: ${minutes(milestone)} after the latest customer message`,
+      text: `Nudge: ${duration(milestone)} after the latest customer message`,
     });
     log.info("nudge.started", {
       conversation: chat.id,
