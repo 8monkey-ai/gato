@@ -22,10 +22,12 @@ const list = (text: string) =>
     .filter(Boolean);
 
 const flag = z.enum(["true", "false"]).transform((value) => value === "true");
-const seconds = z.coerce
-  .number()
-  .positive()
-  .transform((value) => value * 1000);
+const seconds = (fallback: number) =>
+  z.coerce
+    .number()
+    .positive()
+    .default(fallback)
+    .transform((value) => value * 1000);
 
 const hours = z
   .string()
@@ -72,9 +74,9 @@ const schema = z.object({
   IMAGE_PREPARATION_MODEL: z.string().min(1).optional(),
   DOCUMENT_PREPARATION_MODEL: z.string().min(1).optional(),
   AUDIO_PREPARATION_MODEL: z.string().min(1).optional(),
-  TURN_TIMEOUT_SECONDS: seconds.default(120),
+  TURN_TIMEOUT_SECONDS: seconds(120),
   TURN_MAX_MODEL_CALLS: z.coerce.number().int().positive().default(12),
-  SHUTDOWN_TIMEOUT_SECONDS: seconds.default(30),
+  SHUTDOWN_TIMEOUT_SECONDS: seconds(30),
   DELIVERY_MESSAGE_BOUNDARY: z
     .string()
     .min(1)
@@ -86,7 +88,7 @@ const schema = z.object({
   DELIVERY_VIDEO_LINK_TEXT: z.enum(["replace", "separate"]).default("replace"),
   DELIVERY_APPROVED_VIDEO_URLS: z.string().default("").transform(list),
   NUDGE_ENABLED: flag.default(true),
-  NUDGE_CHECK_INTERVAL_SECONDS: seconds.default(300),
+  NUDGE_CHECK_INTERVAL_SECONDS: seconds(300),
   NUDGE_MILESTONES: z
     .string()
     .default("5m,35m,12h35m,12h45m")

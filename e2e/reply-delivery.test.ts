@@ -2,10 +2,10 @@ import { expect, test } from "bun:test";
 
 import { messages, readChat } from "./support/app.ts";
 import { until } from "./support/recorder.ts";
-import { telegramHarness } from "./support/setup.ts";
+import { startHarness } from "./support/setup.ts";
 
 test("§6 delivery: each paragraph is one message, in order, sent once", async () => {
-  const { telegram, gateway, dataDir } = await telegramHarness();
+  const { telegram, gateway, dataDir } = await startHarness();
   gateway.script(() => ({
     text: "Hello Ali!\n\nOur price is RM 10.\n\n\n\nAnything else?",
   }));

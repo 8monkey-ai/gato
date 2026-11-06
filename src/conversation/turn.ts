@@ -118,7 +118,10 @@ async function attempt(deps: TurnDeps, job: TurnJob, turn: TurnEntry) {
       delivery,
     });
     const delivered = await delivery.finish();
-    return { outcome: successOutcome(reply.skipped, delivered), delivered };
+    const outcome = signal.aborted
+      ? failureOutcome(signal.reason, job, timeout, delivered.delivered)
+      : successOutcome(reply.skipped, delivered);
+    return { outcome, delivered };
   } catch (error) {
     const delivered = await delivery.finish();
     const outcome = failureOutcome(error, job, timeout, delivered.delivered);

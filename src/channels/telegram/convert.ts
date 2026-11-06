@@ -90,6 +90,12 @@ function senderName(message: Message): string | undefined {
   );
 }
 
+/** Telegram gives whole seconds. The receipt time keeps the order inside that second. */
+function sentTime(seconds: number): Date {
+  const start = seconds * 1000;
+  return new Date(Math.max(start, Math.min(Date.now(), start + 999)));
+}
+
 /** A standard bot sees only customer messages. The bot's own sends are recorded when they are sent. */
 export function toIncoming(message: Message): IncomingMessage {
   const unsupported = unsupportedKinds.filter(
@@ -103,7 +109,7 @@ export function toIncoming(message: Message): IncomingMessage {
     .join("\n");
   return {
     ref: String(message.message_id),
-    at: new Date(message.date * 1000),
+    at: sentTime(message.date),
     role: "customer",
     sender: senderName(message),
     text,

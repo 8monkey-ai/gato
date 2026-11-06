@@ -46,8 +46,15 @@ export async function startApp(
     stderr: "pipe",
   });
   const collect = async (stream: ReadableStream<Uint8Array>) => {
-    for await (const line of stream.pipeThrough(new TextDecoderStream()))
-      logs.push(...line.split("\n").filter(Boolean));
+    const decoder = new TextDecoder();
+    let rest = "";
+    for await (const chunk of stream) {
+      const lines = (rest + decoder.decode(chunk, { stream: true })).split(
+        "\n",
+      );
+      rest = lines.pop() ?? "";
+      logs.push(...lines.filter(Boolean));
+    }
   };
   void collect(child.stdout);
   void collect(child.stderr);
@@ -79,6 +86,14 @@ export interface RecordEntry {
   text: string;
 }
 
+function parseLine(line: string): RecordEntry {
+  const match = /^\[([^\]]+)\] ([^{]*)(\{.*\})$/.exec(line);
+  if (!match) throw new Error(`bad chat line: ${line}`);
+  const [, at = "", label = "", json = "{}"] = match;
+  const meta = JSON.parse(json) as Record<string, unknown>;
+  return { at, label: label.trim(), meta, text: "" };
+}
+
 /** Reads chat.txt through its documented format: a header line per entry and "> " text lines. */
 export async function readChat(
   dataDir: string,
@@ -88,22 +103,14 @@ export async function readChat(
   const file = Bun.file(join(dataDir, connection, id, "chat.txt"));
   if (!(await file.exists())) return [];
   const entries: RecordEntry[] = [];
+  const bodies = new Map<RecordEntry, string[]>();
   for (const line of (await file.text()).split("\n")) {
-    if (!line) continue;
     const last = entries.at(-1);
-    if (line.startsWith(">") && last) {
-      last.text = last.text ? `${last.text}\n${line.slice(2)}` : line.slice(2);
-      continue;
-    }
-    const match = /^\[([^\]]+)\] ([^{]*)(\{.*\})$/.exec(line);
-    if (!match) throw new Error(`bad chat line: ${line}`);
-    entries.push({
-      at: match[1] ?? "",
-      label: (match[2] ?? "").trim(),
-      meta: JSON.parse(match[3] ?? "{}") as Record<string, unknown>,
-      text: "",
-    });
+    if (line.startsWith(">") && last)
+      bodies.set(last, [...(bodies.get(last) ?? []), line.slice(2)]);
+    else if (line) entries.push(parseLine(line));
   }
+  for (const [entry, lines] of bodies) entry.text = lines.join("\n");
   return entries;
 }
 
