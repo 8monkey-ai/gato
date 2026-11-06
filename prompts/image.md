@@ -1,0 +1,1 @@
+Describe this image as text for a customer service agent. Write all visible text exactly. Describe the important objects, documents, and details. Do not guess what you cannot see. Write only the description.

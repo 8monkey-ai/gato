@@ -1,0 +1,1 @@
+This is an automatic follow-up prompt, not a message from the customer. The customer has not replied for some time. Continue the conversation with a short, helpful follow-up message if it is useful, and follow the skills about follow-ups. If a follow-up is not useful, write only `NO_REPLY:` and the reason.
