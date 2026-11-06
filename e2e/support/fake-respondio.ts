@@ -15,6 +15,8 @@ class FakeRespondio {
   readonly assignees = new Map<number, number | null>();
   private nextMessage = 5000;
   failSend?: number;
+  /** Requests to paths that end with this text fail with status 500. */
+  failPath?: string;
   private readonly server = Bun.serve({
     port: 0,
     fetch: (request) => this.handle(request),
@@ -49,19 +51,26 @@ class FakeRespondio {
       body,
       headers: Object.fromEntries(request.headers),
     });
-    const contact = /^\/contact\/id:(\d+)/.exec(path);
+    if (this.failPath && path.endsWith(this.failPath))
+      return Response.json(
+        { code: 500, message: "fake failure" },
+        { status: 500 },
+      );
+    return this.answer(request.method, path);
+  }
+
+  private answer(method: string, path: string): Response {
     if (path.startsWith("/space/user/"))
       return Response.json({ id: agentUserId, firstName: "Agent" });
-    if (contact && path.endsWith("/message")) return this.send();
-    if (contact && request.method === "GET") {
-      const assignee = this.assignees.get(Number(contact[1])) ?? null;
-      return Response.json({
-        id: Number(contact[1]),
-        firstName: "Siti",
-        assignee: assignee && { id: assignee },
-      });
-    }
-    return Response.json({ contactId: Number(contact?.[1] ?? 0) });
+    const contact = Number(/^\/contact\/id:(\d+)/.exec(path)?.[1] ?? 0);
+    if (path.endsWith("/message")) return this.send();
+    if (method !== "GET") return Response.json({ contactId: contact });
+    const assignee = this.assignees.get(contact) ?? null;
+    return Response.json({
+      id: contact,
+      firstName: "Siti",
+      assignee: assignee && { id: assignee },
+    });
   }
 
   private send(): Response {
@@ -85,7 +94,7 @@ export type { FakeRespondio };
 
 let nextWebhookMessage = 1;
 
-export function messageEvent(options: {
+interface EventOptions {
   contact: number;
   traffic?: "incoming" | "outgoing";
   text?: string;
@@ -95,8 +104,30 @@ export function messageEvent(options: {
   messageId?: number;
   timestamp?: number;
   attachment?: { type: string; url: string; fileName?: string; mime?: string };
-}) {
+}
+
+function senderFields(options: EventOptions) {
+  if (options.traffic !== "outgoing") return {};
+  const user = options.userId
+    ? { id: options.userId, firstName: "Sarah", lastName: "Lee" }
+    : undefined;
+  return {
+    sender: { source: options.source ?? "user", userId: options.userId },
+    user,
+  };
+}
+
+function content(options: EventOptions) {
+  return options.attachment
+    ? { type: "attachment", attachment: options.attachment }
+    : { type: "text", text: options.text ?? "" };
+}
+
+export function messageEvent(options: EventOptions) {
   const traffic = options.traffic ?? "incoming";
+  const assignee = options.assignee
+    ? { id: options.assignee, firstName: "Op" }
+    : null;
   return {
     event_type: traffic === "incoming" ? "message.received" : "message.sent",
     event_id: crypto.randomUUID(),
@@ -104,16 +135,9 @@ export function messageEvent(options: {
       id: options.contact,
       firstName: "Siti",
       lastName: "Aminah",
-      assignee: options.assignee
-        ? { id: options.assignee, firstName: "Op" }
-        : null,
+      assignee,
     },
-    ...(traffic === "outgoing" && {
-      sender: { source: options.source ?? "user", userId: options.userId },
-      user: options.userId
-        ? { id: options.userId, firstName: "Sarah", lastName: "Lee" }
-        : undefined,
-    }),
+    ...senderFields(options),
     message: {
       messageId: options.messageId ?? nextWebhookMessage++,
       channelMessageId: 1,
@@ -121,9 +145,7 @@ export function messageEvent(options: {
       channelId: 1,
       traffic,
       timestamp: options.timestamp ?? Date.now(),
-      message: options.attachment
-        ? { type: "attachment", attachment: options.attachment }
-        : { type: "text", text: options.text ?? "" },
+      message: content(options),
     },
   };
 }

@@ -119,7 +119,9 @@ test("§3 attachments: a preparation failure is a processing failure and nothing
   );
   expect(
     record.find((e) => e.meta.type === "message")?.meta.attachments,
-  ).toMatchObject([{ file: expect.any(String) }]);
+  ).toMatchObject([
+    { file: expect.stringMatching(/^attachments\//) as string },
+  ]);
 });
 
 test("§3 attachments: video is recorded and identified as unsupported; failed retrieval stays visible", async () => {
@@ -142,7 +144,10 @@ test("§3 attachments: video is recorded and identified as unsupported; failed r
   expect(context).toContain("content is not available");
   const customer = messages(await readChat(dataDir, "telegram", "53"))[0];
   expect(customer?.meta.attachments).toMatchObject([
-    { category: "video", retrievalError: expect.any(String) },
+    {
+      category: "video",
+      retrievalError: expect.stringContaining("404") as string,
+    },
   ]);
 });
 

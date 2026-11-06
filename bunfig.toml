@@ -22,3 +22,6 @@ maxWarnings = 0
 [fmt]
 # The tool sets the import order, so authors do not.
 sortImports = true
+
+[test]
+timeout = 20000

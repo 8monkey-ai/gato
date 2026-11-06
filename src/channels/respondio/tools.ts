@@ -82,7 +82,7 @@ export function contactTools(
       name: `respondio_${tool.name}`,
       description: `${tool.description} Applies to the current contact only.${fieldTools.has(tool.name) ? fieldNote : ""}`,
       parameters: schema,
-      execute: (input, signal) => {
+      execute: ({ identifier: _ignored, ...input }, signal) => {
         check(tool.name, input, schema, policy);
         return connection.call(
           tool.name,

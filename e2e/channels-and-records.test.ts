@@ -51,57 +51,34 @@ test("§1 records: the same contact id on two connections stays isolated", async
   );
 });
 
+const outgoing = (
+  source: string,
+  text: string,
+  timestamp: number,
+  userId?: number,
+) =>
+  messageEvent({
+    contact: 5,
+    traffic: "outgoing",
+    source,
+    text,
+    timestamp,
+    userId,
+  });
+
 test("§1 classification: respond.io traffic is attributed and outgoing traffic never triggers a reply", async () => {
   const { app, gateway, respondio, dataDir } = await startHarness({
     channels: "respondio",
   });
   const base = Date.now() - 60_000;
-  await postWebhook(
-    app.url,
+  const events = [
     messageEvent({ contact: 5, text: "hello", timestamp: base, assignee: 900 }),
-  );
-  await postWebhook(
-    app.url,
-    messageEvent({
-      contact: 5,
-      traffic: "outgoing",
-      source: "workflow",
-      text: "Auto: we got it",
-      timestamp: base + 1000,
-    }),
-  );
-  await postWebhook(
-    app.url,
-    messageEvent({
-      contact: 5,
-      traffic: "outgoing",
-      source: "user",
-      userId: 900,
-      text: "Hi, Sarah here",
-      timestamp: base + 2000,
-    }),
-  );
-  await postWebhook(
-    app.url,
-    messageEvent({
-      contact: 5,
-      traffic: "outgoing",
-      source: "echo",
-      text: "sent from phone",
-      timestamp: base + 3000,
-    }),
-  );
-  await postWebhook(
-    app.url,
-    messageEvent({
-      contact: 5,
-      traffic: "outgoing",
-      source: "user",
-      userId: agentUserId,
-      text: "bot user text",
-      timestamp: base + 4000,
-    }),
-  );
+    outgoing("workflow", "Auto: we got it", base + 1000),
+    outgoing("user", "Hi, Sarah here", base + 2000, 900),
+    outgoing("echo", "sent from phone", base + 3000),
+    outgoing("user", "bot user text", base + 4000, agentUserId),
+  ];
+  for (const event of events) await postWebhook(app.url, event);
 
   await until(
     async () =>

@@ -16,7 +16,7 @@ class FakeTelegram {
   private readonly files = new Map<string, Uint8Array>();
   private nextUpdate = 1;
   private nextMessage = 1000;
-  private failures: { method: string; status: number }[] = [];
+  private failures: { method: string; status: number; skip: number }[] = [];
   private readonly server = Bun.serve({
     port: 0,
     idleTimeout: 0,
@@ -46,9 +46,9 @@ class FakeTelegram {
     this.files.set(id, data);
   }
 
-  /** The next call of the method fails with the status. */
-  fail(method: string, status: number) {
-    this.failures.push({ method, status });
+  /** A later call of the method fails with the status, after the given number of successful calls. */
+  fail(method: string, status: number, skip = 0) {
+    this.failures.push({ method, status, skip });
   }
 
   stop() {
@@ -68,7 +68,9 @@ class FakeTelegram {
     const body = ((await readBody(request)) ?? {}) as Record<string, unknown>;
     if (name !== "getUpdates")
       this.calls.push({ method: name, path: url.pathname, body, headers: {} });
-    const failure = this.failures.findIndex((f) => f.method === name);
+    const failure = this.failures.findIndex(
+      (f) => f.method === name && f.skip-- <= 0,
+    );
     if (failure >= 0) {
       const [{ status } = { status: 500 }] = this.failures.splice(failure, 1);
       const error = {

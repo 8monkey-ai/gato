@@ -52,42 +52,37 @@ test("§4 migration: prepared history is read without treating it as new work", 
   ).toEqual(["migrated question", "new question", "Hello."]);
 });
 
+function crashedChat(at: number) {
+  return chatFile(
+    entry(
+      at,
+      { type: "message", id: "m1", role: "customer", trigger: true, ref: "1" },
+      "please answer",
+    ),
+    entry(at + 1000, {
+      type: "turn",
+      id: "t1",
+      trigger: "customer",
+      status: "running",
+      covers: ["m1"],
+    }),
+    entry(
+      at + 2000,
+      {
+        type: "message",
+        id: "m2",
+        role: "agent",
+        delivery: "sending",
+        turn: "t1",
+      },
+      "maybe sent",
+    ),
+  );
+}
+
 test("§4 restart: abandoned work does not block, uncertain sends are never resent, waiting input is answered", async () => {
-  const at = Date.now() - 30_000;
   const { gateway, telegram, dataDir } = await startHarness({
-    data: {
-      "telegram/61/chat.txt": chatFile(
-        entry(
-          at,
-          {
-            type: "message",
-            id: "m1",
-            role: "customer",
-            trigger: true,
-            ref: "1",
-          },
-          "please answer",
-        ),
-        entry(at + 1000, {
-          type: "turn",
-          id: "t1",
-          trigger: "customer",
-          status: "running",
-          covers: ["m1"],
-        }),
-        entry(
-          at + 2000,
-          {
-            type: "message",
-            id: "m2",
-            role: "agent",
-            delivery: "sending",
-            turn: "t1",
-          },
-          "maybe sent",
-        ),
-      ),
-    },
+    data: { "telegram/61/chat.txt": crashedChat(Date.now() - 30_000) },
   });
   await until(() => telegram.sent().length === 1);
   expect(telegram.sent()).toEqual(["Hello."]);
