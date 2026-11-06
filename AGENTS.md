@@ -37,6 +37,7 @@ Apply to every non-trivial change. These constrain design, not formatting.
 - Make architectural decisions for the long term. Do not accept a stopgap that only works for now and is meant to be replaced later.
 - Work in small, reviewable increments. Do not mix behavior change with refactoring in the same step.
 - Names state intent. Rename when a better name clarifies a responsibility.
+- Name code after what it does for its callers. A name must not suggest behaviour that the code does not have.
 - Keep comments minimal. Code should be self-explanatory. Comment only to explain why, not what. If code needs a comment to be understood, rewrite it to be clearer instead. Aim for the smallest changeset that solves the problem.
 - Repeating text is not the problem DRY solves. Before finishing a change, look for the same decision written in more than one place and unify it: if changing it in one place and not the other would be a bug, it belongs in one place. Code that merely looks alike, but changes for different reasons, stays separate.
 - Do not name a constant for a value used in one place. A literal at its one call site is clearer than a name defined elsewhere. Introduce the constant on the second use, or when the name explains something the value cannot.
