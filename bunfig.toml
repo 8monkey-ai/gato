@@ -22,3 +22,7 @@ maxWarnings = 0
 [fmt]
 # The tool sets the import order, so authors do not.
 sortImports = true
+
+[test]
+# Registers the cleanup hook for every test file.
+preload = ["./e2e/support/cleanup.ts"]

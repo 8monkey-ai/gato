@@ -88,6 +88,11 @@ export class Delivery {
     try {
       const ref = await this.attempt(item);
       await this.chat.update<MessageEntry>(entry, { delivery: "sent", ref });
+      log.info("delivery.sent", {
+        conversation: this.chat.id,
+        turn: this.turn,
+        ref,
+      });
       return true;
     } catch (error) {
       const failure =

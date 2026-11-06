@@ -73,6 +73,7 @@ export async function startApp(
     () => logs.find((line) => line.includes('"harness.ready"')),
     15_000,
   ).catch(() => {
+    child.kill("SIGKILL");
     throw new Error(`app did not start:\n${logs.join("\n")}`);
   });
   app.url = `http://localhost:${(JSON.parse(ready) as { port: number }).port}`;

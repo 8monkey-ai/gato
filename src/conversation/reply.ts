@@ -92,13 +92,12 @@ async function turnTools(deps: ReplyDeps, job: ReplyJob) {
     ...deps.businessTools,
   ];
   const record = async (activity: ToolActivity) => {
-    if (activity.error)
-      log.warn("tool.failed", {
-        conversation: chat.id,
-        turn,
-        tool: activity.name,
-        error: activity.error,
-      });
+    log[activity.error ? "warn" : "info"]("tool.called", {
+      conversation: chat.id,
+      turn,
+      tool: activity.name,
+      error: activity.error,
+    });
     await chat.add({
       type: "tool",
       at: new Date().toISOString(),

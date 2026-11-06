@@ -1,5 +1,3 @@
-import { afterEach } from "bun:test";
-
 import {
   type App,
   defaultSkills,
@@ -7,19 +5,10 @@ import {
   tempDir,
   writeFiles,
 } from "./app.ts";
+import { onCleanup } from "./cleanup.ts";
 import { fakeGateway } from "./fake-gateway.ts";
 import { agentUserId, fakeRespondio, signingKey } from "./fake-respondio.ts";
 import { fakeTelegram, telegramToken } from "./fake-telegram.ts";
-
-const cleanups: (() => unknown)[] = [];
-
-afterEach(async () => {
-  for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
-});
-
-export function onCleanup(cleanup: () => unknown) {
-  cleanups.push(cleanup);
-}
 
 export const agentModel = "test/agent";
 
@@ -81,4 +70,5 @@ export async function startHarness(options: HarnessOptions = {}) {
   return { app, gateway, telegram, respondio, dataDir, skillsDir, env, start };
 }
 
+export { onCleanup };
 export type { App };
