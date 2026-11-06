@@ -169,23 +169,25 @@ Deployment selects the base model, optional summary model, optional preparation 
 
 Delivery is configurable without application changes. The customer-service defaults are:
 
-| Option                                  | Default                                                                   | Alternatives                          |
-| --------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------- |
-| Message boundary                        | Two newlines (`\n\n`), so each paragraph is one message                   | Another configured character sequence |
-| Pacing                                  | Typing-style pacing                                                       | No added delay                        |
-| Typing-style pace                       | First message immediate; later messages approximately one second per word | Another configured pace               |
-| Approved company video links            | Video attachments                                                         | Text links                            |
-| Text surrounding a converted video link | Replaced by the video                                                     | Separate text message                 |
+| Option            | Default                                                 | Alternatives                          |
+| ----------------- | ------------------------------------------------------- | ------------------------------------- |
+| Message boundary  | Two newlines (`\n\n`), so each paragraph is one message | Another configured character sequence |
+| Pacing            | Typing-style pacing                                     | No added delay                        |
+| Typing-style pace | Approximately one second per word                       | Another configured pace               |
+
+Typing-style pacing applies to every message of a turn, including the first. A message waits for its typing time: its word count at the configured pace. The wait for the first message starts when the turn starts, and the wait for a later message starts when the previous message was sent. Time spent generating the message counts toward its wait, so a message whose generation took longer than its typing time is sent at once.
 
 Each part is sent as soon as it is complete. Delivery never waits for the full answer. Parts keep their original punctuation.
+
+A URL in a reply that points to a media file is sent as an attachment of that type: video, image, audio, or document. The file extension in the URL decides the type; other URLs remain text. Text around the URL is sent as separate text messages in its original order: "text URL" becomes a text message and an attachment, and "text URL text" becomes a text message, an attachment, and another text message.
 
 Delivery preserves message order, omits empty parts, and sends each part once. Pacing must not block generation or customer-message interruption. Failure stops remaining delivery and records which parts reached the customer. One delivery policy applies throughout a turn; changing configuration cannot replay delivered messages. Invalid settings are rejected with an actionable explanation.
 
 Replies use the conversation's channel connection and its configured routing policy. For respond.io, the platform's selected messaging route is the default. An uncertain send outcome is logged without automatic resending, including after restart. Where the channel later reports the send, that report updates the original record without creating another send. Temporary failures are retried only when an accepted action cannot be duplicated; permanent failures must not be retried repeatedly.
 
-Delivery adapts to the channel's capabilities without losing content or changing its order. Messages split further when platform limits require it, unsupported formatting falls back to readable text, and unsupported typing indicators are omitted while configured pacing remains. If a channel cannot send an approved video as an attachment, its original link remains as text. These capability fallbacks are chosen before sending; an uncertain send never triggers an alternative duplicate delivery.
+Delivery adapts to the channel's capabilities without losing content or changing its order. Messages split further when platform limits require it, unsupported formatting falls back to readable text, and unsupported typing indicators are omitted while configured pacing remains. If a channel cannot send an attachment, its URL remains as text. These capability fallbacks are chosen before sending. If the channel refuses an attachment and nothing reached the customer, its URL is sent as text instead; an uncertain send never triggers an alternative duplicate delivery.
 
-Tools, reasoning, operating notes, and skipped-answer explanations remain private under every delivery policy. An ordinary sentence cannot itself trigger handoff. Unrelated video links remain text.
+Tools, reasoning, operating notes, and skipped-answer explanations remain private under every delivery policy. An ordinary sentence cannot itself trigger handoff.
 
 ## 7. Human handoff and failure handling
 
