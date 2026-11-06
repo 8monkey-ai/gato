@@ -1,0 +1,1 @@
+(Automatic follow-up, not a customer message.) The customer has not replied for some time. If it helps the customer, write one short, friendly message that continues the conversation from where it stopped, in the language of the customer. Do not say that this is an automatic message. If a follow-up is not useful now, write nothing.

@@ -1,0 +1,169 @@
+import { stepCountIs, streamText, type TextStreamPart, type ToolSet } from "ai";
+
+import type { Connection } from "../channels/channel.ts";
+import type { Config } from "../config.ts";
+import type { createDelivery } from "../delivery/deliver.ts";
+import { createPartSplitter } from "../delivery/parts.ts";
+import { log, redact } from "../log.ts";
+import type { Trigger } from "../record/chat-file.ts";
+import type { Conversation } from "../record/store.ts";
+import {
+  type Instructions,
+  loadInstructions,
+  skillCatalogue,
+} from "../skills/skills.ts";
+import type { McpServer } from "../tools/mcp.ts";
+import { buildContext } from "./context.ts";
+import type { Budget, createGateway } from "./models.ts";
+import { createPreparer } from "./preparation.ts";
+import { fillTemplate, type Prompts } from "./prompts.ts";
+import { contactSummary } from "./summary.ts";
+import { openTools } from "./tools.ts";
+
+export type AgentDeps = {
+  config: Config;
+  prompts: Prompts;
+  gateway: ReturnType<typeof createGateway>;
+  mcpServers: readonly McpServer[];
+};
+
+export type Turn = {
+  id: string;
+  conversation: Conversation;
+  connection: Connection;
+  trigger: Trigger;
+  budget: Budget;
+  delivery: ReturnType<typeof createDelivery>;
+};
+
+export async function generate(deps: AgentDeps, turn: Turn): Promise<boolean> {
+  const { config, prompts, gateway } = deps;
+  const { conversation, connection, budget } = turn;
+  const instructions = await loadInstructions(config.skillsDir, config.country);
+  reportProblems(instructions.problems);
+  const summary = await contactSummary(conversation, {
+    model: budget.limit(gateway(config.models.summary)),
+    prompt: prompts.summary,
+    timezone: config.timezone,
+    signal: budget.signal,
+  });
+  const prepare = createPreparer({
+    models: config.models.preparation,
+    prompts,
+    gateway,
+    budget,
+    conversation,
+  });
+  const messages = await buildContext(
+    conversation,
+    connection,
+    prepare,
+    summary,
+  );
+  if (turn.trigger === "nudge")
+    messages.push({ role: "user", content: prompts.nudge });
+  const tools = await openTools({
+    instructions,
+    prompts,
+    conversation,
+    connection,
+    mcpServers: deps.mcpServers,
+  });
+  try {
+    const result = streamText({
+      model: budget.limit(gateway(config.models.agent)),
+      instructions: systemPrompt(deps, connection, instructions),
+      messages,
+      tools: tools.tools,
+      // The budget stops the turn at the limit and reports it; a lower stop would hide that.
+      stopWhen: stepCountIs(config.turn.maxModelCalls + 1),
+      abortSignal: budget.signal,
+    });
+    return await consume(result.stream, turn, config.delivery.boundary);
+  } finally {
+    await tools.close();
+  }
+}
+
+function systemPrompt(
+  { config, prompts }: AgentDeps,
+  connection: Connection,
+  instructions: Instructions,
+) {
+  return fillTemplate(prompts.conversation, {
+    channel: connection.label,
+    today: new Intl.DateTimeFormat("en-GB", {
+      timeZone: config.timezone,
+      dateStyle: "full",
+    }).format(),
+    timezone: config.timezone,
+    business_instructions: instructions.business,
+    skills: skillCatalogue(instructions),
+  });
+}
+
+async function consume(
+  stream: AsyncIterable<TextStreamPart<ToolSet>>,
+  turn: Turn,
+  boundary: string,
+) {
+  let generated = false;
+  const splitter = createPartSplitter(boundary, (part) => {
+    generated = true;
+    turn.delivery.enqueue(part);
+  });
+  try {
+    for await (const part of stream) {
+      if (part.type === "text-delta") splitter.push(part.text);
+      if (part.type === "text-end") splitter.flush();
+      if (part.type === "tool-result" || part.type === "tool-error")
+        await recordTool(turn, part);
+      if (part.type === "error") throw part.error;
+    }
+    splitter.flush();
+  } catch (error) {
+    const unsent = splitter.pending();
+    if (unsent) await turn.delivery.recordUnsent(unsent);
+    throw error;
+  }
+  return generated;
+}
+
+async function recordTool(
+  turn: Turn,
+  part: Extract<
+    TextStreamPart<ToolSet>,
+    { type: "tool-result" | "tool-error" }
+  >,
+) {
+  const failed = part.type === "tool-error";
+  const result = failed
+    ? { error: redact(String(part.error)) }
+    : { output: part.output as unknown };
+  log.info("tool.called", {
+    contact: turn.conversation.contact,
+    turn: turn.id,
+    tool: part.toolName,
+    failed,
+  });
+  await turn.conversation.lock(async (edit) => {
+    edit.add({
+      kind: "tool",
+      at: new Date().toISOString(),
+      turn: turn.id,
+      name: part.toolName,
+      ...(failed ? { failed } : {}),
+      text: JSON.stringify({ input: part.input as unknown, ...result }),
+    });
+    await edit.save();
+  });
+}
+
+let reportedProblems = "";
+
+function reportProblems(problems: string[]) {
+  const current = problems.join("\n");
+  if (current && current !== reportedProblems)
+    log.warn("skills.problems", { problems });
+  reportedProblems = current;
+}

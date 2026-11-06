@@ -1,0 +1,1 @@
+Read this document and write its text content for a customer service agent who cannot open it. Keep the important facts, numbers, names, and dates exactly. If the document has no readable text, describe what it contains. Write only the content.
