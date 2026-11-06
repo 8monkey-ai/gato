@@ -15,7 +15,7 @@ export interface Reply {
   status?: number;
 }
 
-export type Script = (request: ChatRequest, index: number) => Reply;
+type Script = (request: ChatRequest, index: number) => Reply;
 
 const encoder = new TextEncoder();
 
@@ -114,10 +114,4 @@ export function fakeGateway(models: string[]) {
     callsFor: (model: string) => requests.filter((r) => r.model === model),
     stop: () => server.stop(true),
   };
-}
-
-export function lastUserText(request: ChatRequest): string {
-  return JSON.stringify(
-    request.messages.filter((m) => m.role === "user").at(-1)?.content ?? "",
-  );
 }

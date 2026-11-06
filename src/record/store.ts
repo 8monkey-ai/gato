@@ -100,7 +100,7 @@ export class Chat {
   }
 }
 
-export interface DamagedChat {
+interface DamagedChat {
   connection: string;
   id: string;
   problem: string;

@@ -1,6 +1,6 @@
 import type { Channel } from "./channels/channel.ts";
 
-export type Health = () => { ready: boolean; [key: string]: unknown };
+type Health = () => { ready: boolean; [key: string]: unknown };
 
 export function serveHttp(port: number, channels: Channel[], health: Health) {
   const routes: Record<

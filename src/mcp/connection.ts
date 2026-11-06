@@ -3,7 +3,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 
 import type { AgentTool } from "../channels/channel.ts";
 
-export interface McpServerTool {
+interface McpServerTool {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;

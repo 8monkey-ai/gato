@@ -3,7 +3,12 @@ import { stepCountIs, streamText } from "ai";
 import { buildContext } from "../agent/context.ts";
 import { composeInstructions, localDate } from "../agent/instructions.ts";
 import type { Budget, ModelFactory } from "../agent/models.ts";
-import { handoffTool, readSkillTool, toToolSet } from "../agent/tools.ts";
+import {
+  handoffTool,
+  readSkillTool,
+  type ToolActivity,
+  toToolSet,
+} from "../agent/tools.ts";
 import {
   type Preparation,
   prepareAttachments,
@@ -11,6 +16,7 @@ import {
 import type { AgentTool, Channel } from "../channels/channel.ts";
 import type { Delivery } from "../delivery/deliver.ts";
 import { createSegmenter } from "../delivery/segmenter.ts";
+import { log } from "../log.ts";
 import type { Prompts } from "../prompts.ts";
 import type { MessageEntry } from "../record/entries.ts";
 import type { Chat } from "../record/store.ts";
@@ -19,7 +25,7 @@ import type { Country } from "../skills/country.ts";
 import { summaryForTurn } from "../summary/summarize.ts";
 import { addNote } from "./notes.ts";
 
-export interface ReplySettings {
+interface ReplySettings {
   country: Country;
   timezone: string;
   prompts: Prompts;
@@ -37,7 +43,7 @@ export interface ReplyDeps {
   businessTools: AgentTool[];
 }
 
-export interface ReplyJob {
+interface ReplyJob {
   chat: Chat;
   channel: Channel;
   turn: string;
@@ -85,9 +91,14 @@ async function turnTools(deps: ReplyDeps, job: ReplyJob) {
     ...(channel.tools?.(chat.id) ?? []),
     ...deps.businessTools,
   ];
-  const record = async (
-    activity: Parameters<Parameters<typeof toToolSet>[1]>[0],
-  ) => {
+  const record = async (activity: ToolActivity) => {
+    if (activity.error)
+      log.warn("tool.failed", {
+        conversation: chat.id,
+        turn,
+        tool: activity.name,
+        error: activity.error,
+      });
     await chat.add({
       type: "tool",
       at: new Date().toISOString(),

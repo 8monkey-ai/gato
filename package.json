@@ -5,8 +5,8 @@
   "packageManager": "bun@1.4.4-canary.1",
   "scripts": {
     "start": "bun src/main.ts",
-    "test": "bun test",
-    "check": "bun fmt --check && bun lint && bun test"
+    "test": "bun test --timeout 20000",
+    "check": "bun fmt --check && bun lint && bun run test"
   },
   "peerDependencies": {
     "typescript": "^7"

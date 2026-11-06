@@ -105,7 +105,7 @@ test("§10 logs: logs connect the work without message text or credentials", asy
   const { app, telegram, gateway } = await startHarness();
   gateway.script(() => ({ text: "Private answer text" }));
   telegram.push(144, { text: "my secret question" });
-  await until(() => telegram.sent().length === 1);
+  await until(() => app.logs.some((l) => l.includes('"turn.ended"')));
   const logs = app.logs.join("\n");
   expect(logs).toContain('"conversation":"144"');
   expect(logs).toContain('"turn.ended"');

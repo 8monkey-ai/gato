@@ -16,7 +16,7 @@ export interface TurnDeps extends ReplyDeps {
   timeoutMs: number;
 }
 
-export interface TurnJob {
+interface TurnJob {
   chat: Chat;
   channel: Channel;
   trigger: TurnEntry["trigger"];

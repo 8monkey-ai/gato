@@ -5,7 +5,7 @@ import { readBody, type RecordedCall } from "./recorder.ts";
 export const signingKey = "signing-key";
 export const agentUserId = 77;
 
-export function sign(body: string): string {
+function sign(body: string): string {
   return createHmac("sha256", signingKey).update(body).digest("base64");
 }
 

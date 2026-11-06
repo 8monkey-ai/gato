@@ -1,4 +1,4 @@
-import type { Entry, MessageEntry, TurnEntry } from "./entries.ts";
+import type { Entry, MessageEntry } from "./entries.ts";
 
 const finalStatuses = new Set(["completed", "skipped", "failed", "timed-out"]);
 
@@ -48,11 +48,4 @@ export function latestAgentActivity(
       (entry.type === "note" && entry.author === "agent"),
   );
   return latest && new Date(latest.at);
-}
-
-export function unfinishedTurns(entries: readonly Entry[]): TurnEntry[] {
-  return entries.filter(
-    (entry): entry is TurnEntry =>
-      entry.type === "turn" && entry.status === "running",
-  );
 }

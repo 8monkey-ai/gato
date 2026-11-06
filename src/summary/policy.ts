@@ -1,6 +1,6 @@
 const day = 24 * 60 * 60 * 1000;
 
-export type SummaryDecision = "reuse" | "skip" | "generate";
+type SummaryDecision = "reuse" | "skip" | "generate";
 
 export function monthBefore(now: Date): Date {
   const start = new Date(now);

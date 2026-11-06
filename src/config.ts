@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { list, parseEnv } from "./env.ts";
 import type { Country } from "./skills/country.ts";
 
 const durationPart = /(\d+)(h|m|s)/g;
@@ -14,12 +15,6 @@ export function parseDuration(text: string): number {
     total += Number(amount) * durationUnits[unit as keyof typeof durationUnits];
   return total;
 }
-
-const list = (text: string) =>
-  text
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
 
 const flag = z.enum(["true", "false"]).transform((value) => value === "true");
 const seconds = (fallback: number) =>
@@ -120,11 +115,5 @@ const schema = z.object({
 export type Config = z.infer<typeof schema>;
 
 export function readConfig(env: Record<string, string | undefined>): Config {
-  const present = Object.entries(env).filter(([, value]) => value !== "");
-  const result = schema.safeParse(Object.fromEntries(present));
-  if (result.success) return result.data;
-  const problems = result.error.issues.map(
-    (issue) => `${issue.path.join(".")}: ${issue.message}`,
-  );
-  throw new Error(`Invalid configuration:\n${problems.join("\n")}`);
+  return parseEnv(schema, env, "configuration");
 }

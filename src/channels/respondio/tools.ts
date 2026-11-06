@@ -1,7 +1,7 @@
 import type { McpConnection } from "../../mcp/connection.ts";
 import type { AgentTool } from "../channel.ts";
 
-export interface RespondioToolPolicy {
+interface RespondioToolPolicy {
   editableFields: string[];
   labels: string[];
 }

@@ -10,7 +10,7 @@ import {
 import type { Chat, ChatStore } from "../record/store.ts";
 import { type Hours, selectMilestone, withinHours } from "./policy.ts";
 
-export interface NudgeSettings {
+interface NudgeSettings {
   intervalMs: number;
   milestones: number[];
   hours: Hours;

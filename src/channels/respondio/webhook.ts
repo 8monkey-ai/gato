@@ -41,7 +41,7 @@ const messageEvent = z.object({
 
 type MessageEvent = z.infer<typeof messageEvent>;
 
-export type WebhookEvent =
+type WebhookEvent =
   | { kind: "message"; contact: string; message: IncomingMessage }
   | { kind: "irrelevant" }
   | { kind: "malformed"; problem: string };

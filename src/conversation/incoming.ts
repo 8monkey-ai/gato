@@ -2,6 +2,11 @@ import type { IncomingMessage } from "../channels/channel.ts";
 import type { MessageEntry } from "../record/entries.ts";
 import type { Chat } from "../record/store.ts";
 
+function sameContent(entry: MessageEntry, message: IncomingMessage) {
+  if (entry.video) return message.attachments[0]?.source === entry.text;
+  return entry.text.trim() === message.text.trim();
+}
+
 function ownSend(
   chat: Chat,
   message: IncomingMessage,
@@ -11,7 +16,7 @@ function ownSend(
       entry.type === "message" &&
       entry.role === "agent" &&
       (entry.delivery === "sending" || entry.delivery === "uncertain") &&
-      entry.text.trim() === message.text.trim(),
+      sameContent(entry, message),
   );
 }
 

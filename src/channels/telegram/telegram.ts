@@ -71,12 +71,13 @@ class TelegramChannel implements Channel {
   async download(source: string) {
     const file = await this.bot.api.getFile(source);
     if (!file.file_path) throw new Error("Telegram gave no file path");
+    // The file address contains the bot token, so its errors must not reach logs or records.
     const response = await fetch(
       `${this.apiRoot}/file/bot${this.token}/${file.file_path}`,
-      {
-        signal: AbortSignal.timeout(60_000),
-      },
-    );
+      { signal: AbortSignal.timeout(60_000) },
+    ).catch(() => {
+      throw new Error("Telegram file download failed");
+    });
     if (!response.ok)
       throw new Error(`Telegram file download answered ${response.status}`);
     return {

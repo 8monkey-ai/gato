@@ -53,3 +53,24 @@ test("an echo of an agent send updates the original record", async () => {
     { role: "agent", delivery: "sent", ref: "55" },
   ]);
 });
+
+test("an echo of a video send matches by its link", async () => {
+  const store = await ChatStore.open(await mkdtemp(join(tmpdir(), "data-")));
+  const chat = store.chat("respondio", "1");
+  await chat.add({
+    type: "message",
+    at: "2026-01-01T00:00:00.000Z",
+    role: "agent",
+    text: "https://v/a.mp4",
+    video: true,
+    delivery: "sending",
+  });
+  const attachments = [
+    { category: "video" as const, source: "https://v/a.mp4" },
+  ];
+  await recordIncoming(
+    chat,
+    message({ ref: "56", role: "agent", text: "", attachments }),
+  );
+  expect(chat.entries).toMatchObject([{ delivery: "sent", ref: "56" }]);
+});

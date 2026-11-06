@@ -4,7 +4,7 @@ import type { Attachment, Entry, MessageEntry } from "../record/entries.ts";
 
 type UserPart = TextPart | ImagePart | FilePart;
 
-export interface ContextFile {
+interface ContextFile {
   read(file: string): Promise<Uint8Array>;
 }
 

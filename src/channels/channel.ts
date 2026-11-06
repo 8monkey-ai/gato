@@ -25,7 +25,7 @@ export interface ChannelSink {
   receive(conversation: string, message: IncomingMessage): Promise<void>;
 }
 
-export type SendFailure = "failed" | "uncertain" | "rejected";
+type SendFailure = "failed" | "uncertain" | "rejected";
 
 /** "rejected": the platform refused the request and did not act, so a retry cannot duplicate it. */
 export class SendError extends Error {
@@ -69,7 +69,7 @@ export interface Channel {
   tools?(conversation: string): AgentTool[];
 }
 
-export interface ChannelFactory {
+interface ChannelFactory {
   name: string;
   create(env: Record<string, string | undefined>): Channel;
 }

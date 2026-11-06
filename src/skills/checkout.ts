@@ -3,7 +3,7 @@ import { dirname, join, posix } from "node:path";
 
 import { type Country, filterCountry } from "./country.ts";
 
-export interface Skill {
+interface Skill {
   name: string;
   description: string;
   path: string;

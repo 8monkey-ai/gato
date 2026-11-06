@@ -23,7 +23,7 @@ export function onCleanup(cleanup: () => unknown) {
 
 export const agentModel = "test/agent";
 
-export interface HarnessOptions {
+interface HarnessOptions {
   channels?: string;
   env?: Record<string, string>;
   skills?: Record<string, string>;

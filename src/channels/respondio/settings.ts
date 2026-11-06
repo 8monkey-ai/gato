@@ -1,10 +1,6 @@
 import { z } from "zod";
 
-const list = (text: string) =>
-  text
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
+import { list, parseEnv } from "../../env.ts";
 
 const schema = z
   .object({
@@ -34,15 +30,7 @@ const schema = z
   });
 
 export function readRespondioSettings(env: Record<string, string | undefined>) {
-  const present = Object.entries(env).filter(
-    ([key, value]) => key.startsWith("RESPONDIO_") && value !== "",
-  );
-  const result = schema.safeParse(Object.fromEntries(present));
-  if (!result.success)
-    throw new Error(
-      `Invalid respond.io configuration:\n${result.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("\n")}`,
-    );
-  const s = result.data;
+  const s = parseEnv(schema, env, "respond.io configuration");
   const labels = {
     handoff: s.RESPONDIO_HANDOFF_LABEL,
     outOfScope: s.RESPONDIO_OUT_OF_SCOPE_LABEL,

@@ -43,7 +43,7 @@ export interface MessageEntry {
   video?: boolean;
 }
 
-export type NoteKind =
+type NoteKind =
   "nudge" | "nudge-failed" | "handoff" | "error" | "skip" | "diagnostic";
 
 export interface NoteEntry {
@@ -56,7 +56,7 @@ export interface NoteEntry {
   turn?: string;
 }
 
-export interface ToolEntry {
+interface ToolEntry {
   type: "tool";
   id: string;
   at: string;

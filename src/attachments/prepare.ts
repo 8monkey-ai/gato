@@ -5,7 +5,7 @@ import { errorText, log } from "../log.ts";
 import type { Attachment, MessageEntry } from "../record/entries.ts";
 import type { Chat } from "../record/store.ts";
 
-export type PreparedCategory = "image" | "document" | "audio";
+type PreparedCategory = "image" | "document" | "audio";
 
 export interface Preparation {
   models: Partial<Record<PreparedCategory, string>>;

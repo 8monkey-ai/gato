@@ -1,4 +1,4 @@
-export type LogFields = Record<string, string | number | boolean | undefined>;
+type LogFields = Record<string, string | number | boolean | undefined>;
 
 function write(level: string, event: string, fields: LogFields) {
   console.log(
