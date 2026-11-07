@@ -26,11 +26,17 @@ test("§10 readiness is visible with connections and nudge state", async () => {
   });
 });
 
-test("§10 a deployment without any channel, or with an unknown model or timezone, does not start", async () => {
+test("§10 a deployment without any channel, an unreachable gateway, or an unknown timezone does not start", async () => {
   world = await createWorld();
   const cases = [
     [{}, "No channel is enabled"],
-    [{ ...world.telegramEnv, AGENT_MODEL: "test/unknown" }, "test/unknown"],
+    [
+      {
+        ...world.telegramEnv,
+        OPENROUTER_BASE_URL: "http://127.0.0.1:9/api/v1",
+      },
+      "127.0.0.1:9",
+    ],
     [{ ...world.telegramEnv, AGENT_TIMEZONE: "Mars/Base" }, "AGENT_TIMEZONE"],
   ] as const;
   for (const [env, error] of cases) {
@@ -40,6 +46,17 @@ test("§10 a deployment without any channel, or with an unknown model or timezon
       true,
     ]);
   }
+});
+
+test("§10 a model that the gateway does not list is reported and the harness still starts", async () => {
+  world = await createWorld();
+  const app = await world.start({
+    AGENT_MODEL: "team/agent-alias",
+    SUMMARY_MODEL: "team/agent-alias",
+  });
+  expect(app.started).toBe(true);
+  const warning = await app.waitForLog("models.not_listed");
+  expect(warning.models).toEqual(["team/agent-alias"]);
 });
 
 test("§10 the configured timezone sets today's date", async () => {

@@ -147,6 +147,7 @@ Migration tools write folders in this format. The harness reads them at startup 
 - Platform times in whole seconds are set to the end of that second, but not later than the time of receipt. This keeps the order of messages that arrive in the same second.
 - OpenRouter drops files in assistant messages. Files that an operator, a workflow, or the agent sent go to the model in a user-side message directly after the message, with a note that names the sender.
 - Markdown links to media files are sent as attachments without the link text. Formatting stays as plain text.
+- At startup the model gateway must answer its model list. A configured model that is not in the list gives the warning `models.not_listed`, but the harness starts: gateways can resolve their own model names, for example agent aliases, only when they are called. A model that does not exist makes each turn fail visibly.
 - A deliberate skip is a reply with no text. The turn outcome is `skipped` with an explanation.
 - After a restart, the harness does not run turns that stopped before they ended. A send that was on its way becomes `uncertain`. The nudge policy continues the conversation if the customer does not write again.
 - Nudges make at most one attempt for each conversation in each check, and agent messages and agent notes, including the "Nudge" note, are the agent activity. These rules are fixed.
