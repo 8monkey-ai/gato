@@ -35,7 +35,11 @@ export async function loadInstructions(
   const problems: string[] = [];
   const found = new Map<string, Skill>();
   const duplicates = new Set<string>();
-  for await (const path of new Bun.Glob("**/SKILL.md").scan({ cwd: dir })) {
+  for await (const path of new Bun.Glob("**/SKILL.md").scan({
+    cwd: dir,
+    dot: true,
+  })) {
+    if (path.startsWith(".git/")) continue;
     const skill = await loadSkill(dir, path, country).catch((error: Error) => {
       problems.push(`${path}: ${error.message}`);
     });
@@ -119,8 +123,8 @@ export function readSkill(
 }
 
 export function skillCatalogue(instructions: Instructions): string {
-  const lines = [...instructions.skills].map(
-    ([name, skill]) => `- ${name}: ${skill.description}`,
-  );
+  const lines = [...instructions.skills]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, skill]) => `- ${name}: ${skill.description}`);
   return lines.join("\n") || "(none)";
 }

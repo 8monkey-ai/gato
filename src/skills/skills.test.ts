@@ -32,13 +32,17 @@ test("loads country-filtered instructions, skills, and references", async () => 
     "skills/refunds/scripts/run.md": "secret",
     "skills/gcash/SKILL.md": skill("gcash", "ph[GCash payments]"),
     "skills/Bad/SKILL.md": skill("Bad", "x"),
+    ".agents/skills/stock/SKILL.md": skill("stock", "Stock checks"),
+    ".git/skills/old/SKILL.md": skill("old", "Not a skill"),
     "a/dup/SKILL.md": skill("dup", "one"),
     "b/dup/SKILL.md": skill("dup", "two"),
   });
   const instructions = await loadInstructions(dir, "my");
 
   expect(instructions.business).toBe("Be kind.");
-  expect(skillCatalogue(instructions)).toBe("- refunds: Refunds in RM");
+  expect(skillCatalogue(instructions)).toBe(
+    "- refunds: Refunds in RM\n- stock: Stock checks",
+  );
   expect(readSkill(instructions, "refunds")).toBe("Steps MY");
   expect(readSkill(instructions, "refunds", "references/prices.md")).toBe(
     "Price 20 RM",

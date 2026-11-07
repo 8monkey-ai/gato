@@ -8,14 +8,20 @@ const inlineOpen = /(?<![\p{L}\p{N}_])(my|ph)\[/u;
 
 export function filterCountry(text: string, country: Country): string {
   const kept: string[] = [];
+  let outside: { from: number; lines: string[] } = { from: 1, lines: [] };
+  const flush = (next: number) => {
+    if (outside.lines.length) kept.push(filterInline(outside, country));
+    outside = { from: next, lines: [] };
+  };
   let block: Country | undefined;
   for (const [index, line] of text.split("\n").entries()) {
     const where = `line ${index + 1}`;
     const opened = blockOpen.exec(line.trim())?.[1] as Country | undefined;
     if (opened || line.trim() === ":::") {
+      flush(index + 2);
       block = toggleBlock(block, opened, where);
     } else if (!block) {
-      kept.push(filterInline(line, country, where));
+      outside.lines.push(line);
     } else if (inlineOpen.test(line)) {
       throw new CountryMarkupError(
         `Inline country text inside a block at ${where}`,
@@ -26,6 +32,7 @@ export function filterCountry(text: string, country: Country): string {
   }
   if (block)
     throw new CountryMarkupError(`Country block ":::${block}" is not closed`);
+  flush(0);
   return kept.join("\n");
 }
 
@@ -41,27 +48,34 @@ function toggleBlock(
   return opened;
 }
 
-function filterInline(line: string, country: Country, where: string): string {
+function filterInline(
+  { from, lines }: { from: number; lines: string[] },
+  country: Country,
+): string {
+  const text = lines.join("\n");
+  const where = (offset: number) =>
+    `line ${from + text.slice(0, offset).split("\n").length - 1}`;
   let result = "";
-  let rest = line;
+  let done = 0;
   for (
-    let match = inlineOpen.exec(rest);
+    let match = inlineOpen.exec(text.slice(done));
     match;
-    match = inlineOpen.exec(rest)
+    match = inlineOpen.exec(text.slice(done))
   ) {
-    const start = match.index + match[0].length;
-    const end = closingBracket(rest, start);
+    const at = done + match.index;
+    const start = at + match[0].length;
+    const end = closingBracket(text, start);
     if (end < 0)
       throw new CountryMarkupError(
-        `Inline "${match[0]}" is not closed at ${where}`,
+        `Inline "${match[0]}" is not closed at ${where(at)}`,
       );
-    const inner = rest.slice(start, end);
+    const inner = text.slice(start, end);
     if (inlineOpen.test(inner))
-      throw new CountryMarkupError(`Nested country text at ${where}`);
-    result += rest.slice(0, match.index) + (match[1] === country ? inner : "");
-    rest = rest.slice(end + 1);
+      throw new CountryMarkupError(`Nested country text at ${where(at)}`);
+    result += text.slice(done, at) + (match[1] === country ? inner : "");
+    done = end + 1;
   }
-  return result + rest;
+  return result + text.slice(done);
 }
 
 function closingBracket(text: string, from: number): number {
