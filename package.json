@@ -1,16 +1,27 @@
 {
   "name": "gato",
-  "module": "index.ts",
   "type": "module",
   "private": true,
   "packageManager": "bun@1.4.4-canary.1",
   "scripts": {
-    "check": "bun fmt --check && bun lint"
+    "start": "bun src/main.ts",
+    "check": "bun fmt --check && bun lint && bun test"
   },
   "peerDependencies": {
     "typescript": "^7"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@types/json-schema": "^7.0.15",
     "bun-types": "^1.4.4-canary.20261103T140956"
+  },
+  "dependencies": {
+    "@8monkey/aikit-respond-io": "^0.1.1",
+    "@ai-sdk/mcp": "^2.0.91",
+    "@openrouter/ai-sdk-provider": "^3.1.0",
+    "@respond-io/typescript-sdk": "^1.4.0",
+    "ai": "^7.0.163",
+    "grammy": "^1.46.0",
+    "zod": "^4.6.7"
   }
 }

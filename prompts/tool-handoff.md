@@ -1,0 +1,1 @@
+Ask a human colleague to take over this conversation. Use it only when your instructions or skills tell you that a human must help. Give the reason in English. This does not send a message to the customer.
