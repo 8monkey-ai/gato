@@ -77,6 +77,35 @@ describe("respond.io message content", () => {
       },
     });
   });
+});
+
+describe("respond.io missing values", () => {
+  test("accept null for values that respond.io does not have", () => {
+    const incoming = message("incoming", {
+      sender: { source: "contact", userId: null },
+    });
+    expect(roleOf(incoming)).toEqual(["customer", undefined]);
+    const outgoing = message(
+      "outgoing",
+      { sender: { source: "user", userId: null } },
+      {
+        type: "attachment",
+        text: null,
+        attachment: {
+          type: "image",
+          url: "https://cdn.test/a.jpg",
+          fileName: null,
+          mime: null,
+        },
+      },
+    );
+    expect(roleOf(outgoing)).toEqual(["operator", "unknown"]);
+    expect(parseNotification(outgoing, undefined)).toMatchObject({
+      message: {
+        attachments: [{ kind: "image", source: "https://cdn.test/a.jpg" }],
+      },
+    });
+  });
 
   test("ignore other events and report malformed ones", () => {
     expect(

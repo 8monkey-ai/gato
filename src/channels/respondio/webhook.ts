@@ -9,6 +9,10 @@ const attachmentKinds = {
   file: "document",
 } as const;
 
+// respond.io sends null for values that it does not have, so null counts as missing.
+const optional = <T extends z.ZodType>(schema: T) =>
+  schema.nullish().transform((v) => v ?? undefined);
+
 const payload = z.object({
   event_type: z.string(),
   contact: z.object({ id: z.number() }),
@@ -18,25 +22,25 @@ const payload = z.object({
     timestamp: z.number(),
     message: z.looseObject({
       type: z.string(),
-      text: z.string().optional(),
-      attachment: z
-        .looseObject({
+      text: optional(z.string()),
+      attachment: optional(
+        z.looseObject({
           type: z.string(),
           url: z.string(),
-          fileName: z.string().optional(),
-          mime: z.string().optional(),
-          caption: z.string().optional(),
-          description: z.string().optional(),
-        })
-        .optional(),
+          fileName: optional(z.string()),
+          mime: optional(z.string()),
+          caption: optional(z.string()),
+          description: optional(z.string()),
+        }),
+      ),
     }),
   }),
-  sender: z
-    .looseObject({
-      source: z.string().optional(),
-      userId: z.number().optional(),
-    })
-    .nullish(),
+  sender: optional(
+    z.looseObject({
+      source: optional(z.string()),
+      userId: optional(z.number()),
+    }),
+  ),
 });
 
 type ParsedNotification =
