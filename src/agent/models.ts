@@ -34,6 +34,26 @@ export async function checkModels(config: Config) {
   if (missing.length) log.warn("models.not_listed", { models: missing });
 }
 
+// The gateway records the request metadata for observability.
+export function withCallMetadata(
+  model: Exclude<LanguageModel, string>,
+  metadata: Record<string, string>,
+) {
+  return wrapLanguageModel({
+    model,
+    middleware: {
+      transformParams: ({ params }) =>
+        Promise.resolve({
+          ...params,
+          providerOptions: {
+            ...params.providerOptions,
+            openrouter: { ...params.providerOptions?.openrouter, metadata },
+          },
+        }),
+    },
+  });
+}
+
 export class WorkLimitError extends Error {}
 
 export function createBudget(

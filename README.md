@@ -132,6 +132,7 @@ Migration tools write folders in this format. The harness reads them at startup 
 ## Operations
 
 - `GET /health` returns `200` when the harness is ready, with the connections, the number of damaged conversations, and the nudge state (`reconciling`, `ready`, or `disabled`).
+- Each model call sends the request field `metadata` with `call_type` (`message`, `nudge`, `summary`, or `preparation`) and `contact_id`, so that the gateway can show them for observability.
 - Logs are JSON lines on standard output. They contain identifiers of connections, contacts, messages, and turns, but no message text. Configured secrets are replaced with `[secret]`.
 - On `SIGTERM`, the harness stops new work. respond.io notifications get `503`, so that respond.io sends them again later. Running turns can finish until `SHUTDOWN_TIMEOUT_SECONDS`. Then they stop, and the record keeps what was sent.
 - The container image is in `Dockerfile`. Mount the data folder and the skills checkout.

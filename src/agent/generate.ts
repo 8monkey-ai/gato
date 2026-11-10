@@ -1,4 +1,10 @@
-import { stepCountIs, streamText, type TextStreamPart, type ToolSet } from "ai";
+import {
+  type LanguageModel,
+  stepCountIs,
+  streamText,
+  type TextStreamPart,
+  type ToolSet,
+} from "ai";
 
 import type { Connection } from "../channels/channel.ts";
 import type { Config } from "../config.ts";
@@ -33,11 +39,12 @@ export type Turn = {
   connection: Connection;
   trigger: Trigger;
   budget: Budget;
+  model: (modelId: string, callType: string) => LanguageModel;
   delivery: ReturnType<typeof createDelivery>;
 };
 
 export async function generate(deps: AgentDeps, turn: Turn): Promise<boolean> {
-  const { config, prompts, gateway } = deps;
+  const { config, prompts } = deps;
   const { conversation, connection, budget } = turn;
   const instructions = await loadInstructions(config.skillsDir, config.country);
   reportProblems(instructions.problems);
@@ -51,7 +58,10 @@ export async function generate(deps: AgentDeps, turn: Turn): Promise<boolean> {
   });
   try {
     const result = streamText({
-      model: budget.limit(gateway(config.models.agent)),
+      model: turn.model(
+        config.models.agent,
+        turn.trigger === "nudge" ? "nudge" : "message",
+      ),
       instructions: systemPrompt(deps, connection, instructions),
       messages,
       tools: tools.tools,
@@ -65,13 +75,10 @@ export async function generate(deps: AgentDeps, turn: Turn): Promise<boolean> {
   }
 }
 
-async function turnMessages(
-  { config, prompts, gateway }: AgentDeps,
-  turn: Turn,
-) {
+async function turnMessages({ config, prompts }: AgentDeps, turn: Turn) {
   const { conversation, connection, budget } = turn;
   const summary = await contactSummary(conversation, {
-    model: budget.limit(gateway(config.models.summary)),
+    model: turn.model(config.models.summary, "summary"),
     prompt: prompts.summary,
     timezone: config.timezone,
     signal: budget.signal,
@@ -79,8 +86,8 @@ async function turnMessages(
   const prepare = createPreparer({
     models: config.models.preparation,
     prompts,
-    gateway,
-    budget,
+    model: (modelId) => turn.model(modelId, "preparation"),
+    signal: budget.signal,
     conversation,
   });
   const messages = await buildContext(

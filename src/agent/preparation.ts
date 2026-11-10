@@ -1,9 +1,8 @@
-import { generateText } from "ai";
+import { generateText, type LanguageModel } from "ai";
 
 import type { Config } from "../config.ts";
 import type { Attachment } from "../record/chat-file.ts";
 import type { Conversation } from "../record/store.ts";
-import type { Budget, createGateway } from "./models.ts";
 import type { Prompts } from "./prompts.ts";
 
 export class PreparationError extends Error {}
@@ -22,8 +21,8 @@ export const isPreparedKind = (kind: string): kind is PreparedKind =>
 export function createPreparer(deps: {
   models: Config["models"]["preparation"];
   prompts: Prompts;
-  gateway: ReturnType<typeof createGateway>;
-  budget: Budget;
+  model: (modelId: string) => LanguageModel;
+  signal: AbortSignal;
   conversation: Conversation;
 }) {
   return async (
@@ -35,7 +34,7 @@ export function createPreparer(deps: {
     if (!modelId || !isPreparedKind(kind)) return undefined;
     if (attachment.prepared) return attachment.prepared.text;
     const { text } = await generateText({
-      model: deps.budget.limit(deps.gateway(modelId)),
+      model: deps.model(modelId),
       instructions: deps.prompts[`prepare-${kind}`],
       messages: [
         {
@@ -50,7 +49,7 @@ export function createPreparer(deps: {
           ],
         },
       ],
-      abortSignal: deps.budget.signal,
+      abortSignal: deps.signal,
     });
     if (!text.trim())
       throw new PreparationError(

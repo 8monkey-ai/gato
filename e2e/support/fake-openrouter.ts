@@ -7,6 +7,7 @@ export type LlmRequest = {
   tools?: {
     function: { name: string; description?: string; parameters: unknown };
   }[];
+  metadata?: Record<string, string>;
 };
 
 export type LlmReply = {

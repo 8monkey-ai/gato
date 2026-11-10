@@ -4,7 +4,7 @@ import { log, redact } from "../log.ts";
 import type { Outcome, Trigger } from "../record/chat-file.ts";
 import type { Conversation } from "../record/store.ts";
 import { type AgentDeps, generate, type Turn } from "./generate.ts";
-import { createBudget } from "./models.ts";
+import { createBudget, withCallMetadata } from "./models.ts";
 
 type Stopped = "failed" | "uncertain" | undefined;
 type Result = { outcome: Outcome; detail?: string; stopped: Stopped };
@@ -35,7 +35,22 @@ export function createTurnRunner(deps: AgentDeps) {
       startedAt: started.getTime(),
       signal: budget.signal,
     });
-    const turn = { id, conversation, connection, trigger, budget, delivery };
+    const model = (modelId: string, callType: string) =>
+      budget.limit(
+        withCallMetadata(deps.gateway(modelId), {
+          call_type: callType,
+          contact_id: conversation.contact,
+        }),
+      );
+    const turn = {
+      id,
+      conversation,
+      connection,
+      trigger,
+      budget,
+      delivery,
+      model,
+    };
     const result = await execute(deps, turn, interruption);
     await finish(turn, started, result, where);
   };
