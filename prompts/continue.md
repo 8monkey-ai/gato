@@ -1,0 +1,1 @@
+(Internal note, not a customer message.) The last messages above were sent to the customer by you or your team after the latest customer message. Continue from there: answer the latest customer messages if they still need an answer, and do not repeat what was already sent. If nothing more is necessary, write nothing.

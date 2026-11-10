@@ -5,6 +5,7 @@ const names = [
   "prepare-document",
   "prepare-audio",
   "nudge",
+  "continue",
   "tool-read-skill",
   "tool-handoff",
 ] as const;

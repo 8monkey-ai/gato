@@ -118,3 +118,50 @@ test("§2 conversations progress independently while one turn is slow", async ()
     ["1", "Late."],
   ]);
 });
+
+test("§2 a history that ends with team messages keeps its order and ends with a private trigger", async () => {
+  world = await createWorld();
+  const app = await world.start({}, "respondio");
+  const now = Math.floor(Date.now() / 1000);
+  const operator = { source: "user", userId: 3 };
+  await notify(
+    app.url,
+    "main",
+    messageEvent({
+      contact: 5,
+      traffic: "outgoing",
+      text: "Video of the unit",
+      timestamp: now,
+      sender: operator,
+    }),
+    world.respondio.signingKey,
+  );
+  await notify(
+    app.url,
+    "main",
+    messageEvent({
+      contact: 5,
+      traffic: "incoming",
+      text: "What is this?",
+      timestamp: now - 5,
+    }),
+    world.respondio.signingKey,
+  );
+  await waitUntil(() => world.respondio.sent.length);
+
+  const messages = world.llm
+    .mainRequests()[0]!
+    .messages.filter((m) => m.role !== "system");
+  expect(
+    messages.slice(0, 2).map((m) => [m.role, contentText(m.content)]),
+  ).toEqual([
+    ["user", "What is this?"],
+    ["assistant", "[Human colleague] Video of the unit"],
+  ]);
+  expect(messages[2]?.role).toBe("user");
+  expect(contentText(messages[2]?.content)).toStartWith(
+    "(Internal note, not a customer message.)",
+  );
+  const chat = await readChat(world.dataDir, "respondio-main", "5");
+  expect(chat.filter((e) => e.tag === "customer")).toHaveLength(1);
+});

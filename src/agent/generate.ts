@@ -41,27 +41,7 @@ export async function generate(deps: AgentDeps, turn: Turn): Promise<boolean> {
   const { conversation, connection, budget } = turn;
   const instructions = await loadInstructions(config.skillsDir, config.country);
   reportProblems(instructions.problems);
-  const summary = await contactSummary(conversation, {
-    model: budget.limit(gateway(config.models.summary)),
-    prompt: prompts.summary,
-    timezone: config.timezone,
-    signal: budget.signal,
-  });
-  const prepare = createPreparer({
-    models: config.models.preparation,
-    prompts,
-    gateway,
-    budget,
-    conversation,
-  });
-  const messages = await buildContext(
-    conversation,
-    connection,
-    prepare,
-    summary,
-  );
-  if (turn.trigger === "nudge")
-    messages.push({ role: "user", content: prompts.nudge });
+  const messages = await turnMessages(deps, turn);
   const tools = await openTools({
     instructions,
     prompts,
@@ -83,6 +63,42 @@ export async function generate(deps: AgentDeps, turn: Turn): Promise<boolean> {
   } finally {
     await tools.close();
   }
+}
+
+async function turnMessages(
+  { config, prompts, gateway }: AgentDeps,
+  turn: Turn,
+) {
+  const { conversation, connection, budget } = turn;
+  const summary = await contactSummary(conversation, {
+    model: budget.limit(gateway(config.models.summary)),
+    prompt: prompts.summary,
+    timezone: config.timezone,
+    signal: budget.signal,
+  });
+  const prepare = createPreparer({
+    models: config.models.preparation,
+    prompts,
+    gateway,
+    budget,
+    conversation,
+  });
+  const messages = await buildContext(
+    conversation,
+    connection,
+    prepare,
+    summary,
+  );
+  // Model gateways refuse a request that ends with an assistant message.
+  const endsWithTeam = messages.at(-1)?.role === "assistant";
+  const trigger =
+    turn.trigger === "nudge"
+      ? prompts.nudge
+      : endsWithTeam
+        ? prompts.continue
+        : undefined;
+  if (trigger) messages.push({ role: "user", content: trigger });
+  return messages;
 }
 
 function systemPrompt(
