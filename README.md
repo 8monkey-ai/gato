@@ -43,34 +43,34 @@ All configuration is in environment variables. Invalid values stop the startup w
 
 ### Harness
 
-| Variable                           | Default                        | Meaning                                                                                    |
-| ---------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------ |
-| `CONVERSATIONS_DIR`                | (required)                     | The data folder. It must exist and be writable.                                            |
-| `SKILLS_DIR`                       | (required)                     | The mounted skills checkout.                                                               |
-| `AGENT_COUNTRY`                    | (required)                     | `MY` or `PH`.                                                                              |
-| `AGENT_TIMEZONE`                   | `UTC`                          | IANA timezone for today's date, summaries, and nudge hours.                                |
-| `HTTP_PORT`                        | `3000`                         | Port for webhooks and `/health`.                                                           |
-| `OPENROUTER_API_KEY`               | (required)                     | OpenRouter key.                                                                            |
-| `OPENROUTER_BASE_URL`              | `https://openrouter.ai/api/v1` | OpenRouter API address.                                                                    |
-| `AGENT_MODEL`                      | (required)                     | Base conversation model.                                                                   |
-| `SUMMARY_MODEL`                    | `AGENT_MODEL`                  | Model for contact summaries.                                                               |
-| `IMAGE_PREPARATION_MODEL`          | (none)                         | Model that describes images. Without it, images go to the main call.                       |
-| `DOCUMENT_PREPARATION_MODEL`       | (none)                         | Model that reads documents. Without it, documents go to the main call.                     |
-| `AUDIO_PREPARATION_MODEL`          | (none)                         | Model that transcribes audio. Without it, audio goes to the main call.                     |
-| `TURN_TIMEOUT_SECONDS`             | `120`                          | Maximum time of one turn.                                                                  |
-| `TURN_MAX_MODEL_CALLS`             | `12`                           | Maximum model calls of one turn, including summary, preparation, tool rounds, and retries. |
-| `DELIVERY_MESSAGE_BOUNDARY`        | `\n\n`                         | Text that separates two messages. `\n` and `\t` are escapes.                               |
-| `DELIVERY_PACING`                  | `typing`                       | `typing` or `none`.                                                                        |
-| `DELIVERY_TYPING_SECONDS_PER_WORD` | `1`                            | Typing pace.                                                                               |
-| `NUDGES_ENABLED`                   | `true`                         | Switches automatic nudges on or off.                                                       |
-| `NUDGES_CHECK_INTERVAL_SECONDS`    | `300`                          | Time between two nudge checks.                                                             |
-| `NUDGES_MILESTONES_MINUTES`        | `5,35,755,765`                 | Nudge times after the latest real customer message.                                        |
-| `NUDGES_PERMITTED_HOURS`           | (all hours)                    | For example `09:00-18:00` in `AGENT_TIMEZONE`. Ranges past midnight are permitted.         |
-| `SHUTDOWN_TIMEOUT_SECONDS`         | `30`                           | Time that running turns get to finish after `SIGTERM`.                                     |
-| `MCP_SERVERS`                      | (none)                         | Names of business MCP servers, for example `crm,stock`.                                    |
-| `MCP_<NAME>_URL`                   | (required for each server)     | Streamable HTTP address of the server.                                                     |
-| `MCP_<NAME>_BEARER_TOKEN`          | (none)                         | Static bearer token for the server.                                                        |
-| `MCP_<NAME>_TOOLS`                 | (none)                         | Permitted tools. The agent sees them as `<name>__<tool>`.                                  |
+| Variable                           | Default                        | Meaning                                                                                                                        |
+| ---------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `CONVERSATIONS_DIR`                | (required)                     | The data folder. It must exist and be writable.                                                                                |
+| `SKILLS_DIR`                       | (required)                     | The mounted skills checkout.                                                                                                   |
+| `AGENT_COUNTRY`                    | (required)                     | `MY` or `PH`.                                                                                                                  |
+| `AGENT_TIMEZONE`                   | `UTC`                          | IANA timezone for today's date, summaries, and nudge hours.                                                                    |
+| `HTTP_PORT`                        | `3000`                         | Port for webhooks and `/health`.                                                                                               |
+| `OPENROUTER_API_KEY`               | (required)                     | OpenRouter key.                                                                                                                |
+| `OPENROUTER_BASE_URL`              | `https://openrouter.ai/api/v1` | OpenRouter API address.                                                                                                        |
+| `AGENT_MODEL`                      | (required)                     | Base conversation model.                                                                                                       |
+| `SUMMARY_MODEL`                    | `AGENT_MODEL`                  | Model for contact summaries.                                                                                                   |
+| `IMAGE_PREPARATION_MODEL`          | (none)                         | Model that describes images. Without it, images go to the main call.                                                           |
+| `DOCUMENT_PREPARATION_MODEL`       | (none)                         | Model that reads documents. Without it, documents go to the main call.                                                         |
+| `AUDIO_PREPARATION_MODEL`          | (none)                         | Model that transcribes audio. Without it, audio goes to the main call.                                                         |
+| `TURN_TIMEOUT_SECONDS`             | `120`                          | Maximum time of one turn.                                                                                                      |
+| `TURN_MAX_MODEL_CALLS`             | `12`                           | Maximum model calls of one turn, including summary, preparation, tool rounds, and retries.                                     |
+| `DELIVERY_MESSAGE_BOUNDARY`        | `\n\n`                         | Text that separates two messages, for example three vertical bars. `\n` and `\t` are escapes. The agent instructions name it.  |
+| `DELIVERY_PACING`                  | `typing`                       | `typing` or `none`.                                                                                                            |
+| `DELIVERY_TYPING_SECONDS_PER_WORD` | `1`                            | Typing pace.                                                                                                                   |
+| `NUDGES_ENABLED`                   | `true`                         | Switches automatic nudges on or off.                                                                                           |
+| `NUDGES_CHECK_INTERVAL_SECONDS`    | `300`                          | Time between two nudge checks.                                                                                                 |
+| `NUDGES_MILESTONES_MINUTES`        | `5,35,755,765`                 | Nudge times after the latest real customer message.                                                                            |
+| `NUDGES_PERMITTED_HOURS`           | (all hours)                    | For example `09:00-18:00` in `AGENT_TIMEZONE`. Ranges past midnight are permitted.                                             |
+| `SHUTDOWN_TIMEOUT_SECONDS`         | `30`                           | Time that running turns get to finish after `SIGTERM`.                                                                         |
+| `MCP_SERVERS`                      | (none)                         | Names of business MCP servers, for example `crm,stock`.                                                                        |
+| `MCP_<NAME>_URL`                   | (required for each server)     | Streamable HTTP address of the server.                                                                                         |
+| `MCP_<NAME>_HEADERS`               | (none)                         | Request headers as a JSON object, for example `{"x-api-token":"…"}` or `{"authorization":"Bearer …"}`. The values are secrets. |
+| `MCP_<NAME>_TOOLS`                 | (none)                         | Permitted tools. The agent sees them as `<name>__<tool>`.                                                                      |
 
 ### Telegram
 

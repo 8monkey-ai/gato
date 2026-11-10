@@ -97,6 +97,7 @@ function systemPrompt(
       dateStyle: "full",
     }).format(),
     timezone: config.timezone,
+    message_boundary: JSON.stringify(config.delivery.boundary).slice(1, -1),
     business_instructions: instructions.business,
     skills: skillCatalogue(instructions),
   });

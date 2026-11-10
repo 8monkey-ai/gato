@@ -29,24 +29,27 @@ const toolResults = (request: LlmRequest) =>
     .map((m) => contentText(m.content));
 
 function crm() {
-  const fake = startFakeMcp({
-    lookup_order: {
-      description: "Find an order.",
-      input: { order: z.string() },
-      result: ({ order }) => ({ text: `Order ${String(order)} shipped` }),
+  const fake = startFakeMcp(
+    {
+      lookup_order: {
+        description: "Find an order.",
+        input: { order: z.string() },
+        result: ({ order }) => ({ text: `Order ${String(order)} shipped` }),
+      },
+      cancel_order: {
+        description: "Cancel an order.",
+        input: { order: z.string() },
+      },
     },
-    cancel_order: {
-      description: "Cancel an order.",
-      input: { order: z.string() },
-    },
-  });
+    { header: "x-api-token", value: "crm-secret" },
+  );
   stops.push(fake.stop);
   return {
     fake,
     env: {
       MCP_SERVERS: "crm",
       MCP_CRM_URL: fake.url,
-      MCP_CRM_BEARER_TOKEN: fake.bearerToken,
+      MCP_CRM_HEADERS: '{"x-api-token": "crm-secret"}',
       MCP_CRM_TOOLS: "lookup_order",
     },
   };
@@ -59,7 +62,7 @@ function respondioMcp(extra: Record<string, string> = {}) {
     fake,
     env: {
       RESPONDIO_MAIN_MCP_URL: fake.url,
-      RESPONDIO_MAIN_MCP_BEARER_TOKEN: fake.bearerToken,
+      RESPONDIO_MAIN_MCP_BEARER_TOKEN: "mcp-secret",
       ...extra,
     },
   };
@@ -79,9 +82,7 @@ test("§9 only permitted tools are offered, with authentication, and results rea
   expect(toolNames(first!)).toEqual(["crm__lookup_order", "read_skill"]);
   expect(fake.calls).toEqual([{ name: "lookup_order", args: { order: "A1" } }]);
   expect(toolResults(second!)[0]).toContain("Order A1 shipped");
-  expect(fake.authorizations.every((a) => a === "Bearer mcp-secret")).toBe(
-    true,
-  );
+  expect(fake.authorizations.every((a) => a === "crm-secret")).toBe(true);
 });
 
 test("§9 a permitted tool that the server does not offer prevents startup", async () => {

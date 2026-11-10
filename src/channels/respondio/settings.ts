@@ -63,7 +63,7 @@ function mcpSettings(
   const server: McpServer = {
     name: "respondio",
     url: required("MCP_URL"),
-    bearerToken: required("MCP_BEARER_TOKEN"),
+    headers: { authorization: `Bearer ${required("MCP_BEARER_TOKEN")}` },
     tools: listOr("TOOLS", defaultTools),
   };
   checkPermittedTools(server.tools);

@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 
 import { readChat, startApp, waitUntil } from "./support/app.ts";
+import { systemText } from "./support/fake-openrouter.ts";
 import { messageEvent, notify } from "./support/fake-respondio.ts";
 import { createWorld, type World } from "./support/world.ts";
 
@@ -38,9 +39,20 @@ test("§6 each paragraph is sent as its own message", async () => {
 });
 
 test("§6 a configured boundary splits the reply", async () => {
-  await reply("One|Two\n\nstill two", { DELIVERY_MESSAGE_BOUNDARY: "|" });
+  await reply("One|||Two\n\nstill two", { DELIVERY_MESSAGE_BOUNDARY: "|||" });
   await turnEntry();
   expect(sentTexts()).toEqual(["One", "Two\n\nstill two"]);
+  expect(systemText(world.llm.mainRequests()[0]!)).toContain(
+    "To start a new chat message, write `|||`.",
+  );
+});
+
+test("§6 the default boundary is named to the agent as a blank line", async () => {
+  await reply("Hi");
+  await turnEntry();
+  expect(systemText(world.llm.mainRequests()[0]!)).toContain(
+    "To start a new chat message, write `\\n\\n`.",
+  );
 });
 
 test("§6 media URLs are sent as attachments between the text around them", async () => {
