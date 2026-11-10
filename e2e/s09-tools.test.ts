@@ -29,27 +29,24 @@ const toolResults = (request: LlmRequest) =>
     .map((m) => contentText(m.content));
 
 function crm() {
-  const fake = startFakeMcp(
-    {
-      lookup_order: {
-        description: "Find an order.",
-        input: { order: z.string() },
-        result: ({ order }) => ({ text: `Order ${String(order)} shipped` }),
-      },
-      cancel_order: {
-        description: "Cancel an order.",
-        input: { order: z.string() },
-      },
+  const fake = startFakeMcp({
+    lookup_order: {
+      description: "Find an order.",
+      input: { order: z.string() },
+      result: ({ order }) => ({ text: `Order ${String(order)} shipped` }),
     },
-    { header: "x-api-token", value: "crm-secret" },
-  );
+    cancel_order: {
+      description: "Cancel an order.",
+      input: { order: z.string() },
+    },
+  });
   stops.push(fake.stop);
   return {
     fake,
     env: {
       MCP_SERVERS: "crm",
       MCP_CRM_URL: fake.url,
-      MCP_CRM_HEADERS: '{"x-api-token": "crm-secret"}',
+      MCP_CRM_BEARER_TOKEN: fake.bearerToken,
       MCP_CRM_TOOLS: "lookup_order",
     },
   };
@@ -62,7 +59,7 @@ function respondioMcp(extra: Record<string, string> = {}) {
     fake,
     env: {
       RESPONDIO_MAIN_MCP_URL: fake.url,
-      RESPONDIO_MAIN_MCP_BEARER_TOKEN: "mcp-secret",
+      RESPONDIO_MAIN_MCP_BEARER_TOKEN: fake.bearerToken,
       ...extra,
     },
   };
@@ -72,17 +69,19 @@ test("§9 only permitted tools are offered, with authentication, and results rea
   world = await createWorld();
   const { fake, env } = crm();
   world.llm.respond(
-    callOnce([{ name: "crm__lookup_order", args: { order: "A1" } }]),
+    callOnce([{ name: "lookup_order", args: { order: "A1" } }]),
   );
   await world.start(env);
   world.telegram.push(42, { text: "Where is A1?" });
   await waitUntil(() => world.telegram.sent.length);
 
   const [first, second] = world.llm.mainRequests();
-  expect(toolNames(first!)).toEqual(["crm__lookup_order", "read_skill"]);
+  expect(toolNames(first!)).toEqual(["lookup_order", "read_skill"]);
   expect(fake.calls).toEqual([{ name: "lookup_order", args: { order: "A1" } }]);
   expect(toolResults(second!)[0]).toContain("Order A1 shipped");
-  expect(fake.authorizations.every((a) => a === "crm-secret")).toBe(true);
+  expect(fake.authorizations.every((a) => a === "Bearer mcp-secret")).toBe(
+    true,
+  );
 });
 
 test("§9 a permitted tool that the server does not offer prevents startup", async () => {
@@ -103,10 +102,10 @@ test("§9 contact tools act only on the current contact and reject disallowed ch
   const { fake, env } = respondioMcp();
   world.llm.respond(
     callOnce([
-      { name: "respondio__get_contact", args: {} },
-      { name: "respondio__update_contact", args: { email: "x@y.z" } },
-      { name: "respondio__add_contact_tags", args: { tags: ["vip"] } },
-      { name: "respondio__update_contact", args: { firstName: "Ana" } },
+      { name: "get_contact", args: {} },
+      { name: "update_contact", args: { email: "x@y.z" } },
+      { name: "add_contact_tags", args: { tags: ["vip"] } },
+      { name: "update_contact", args: { firstName: "Ana" } },
     ]),
   );
   const app = await world.start(env, "respondio");
@@ -122,10 +121,10 @@ test("§9 contact tools act only on the current contact and reject disallowed ch
   expect(toolNames(first)).toEqual(
     [
       "read_skill",
-      "respondio__add_contact_tags",
-      "respondio__create_comment",
-      "respondio__get_contact",
-      "respondio__update_contact",
+      "add_contact_tags",
+      "create_comment",
+      "get_contact",
+      "update_contact",
     ]
       .concat("handoff_to_colleague")
       .sort(),
@@ -161,4 +160,33 @@ test("§9 tools that reach beyond the current contact cannot be permitted", asyn
   });
   expect(app.started).toBe(false);
   expect(app.startError).toContain("list_contacts");
+});
+
+test("§9 two tools with the same name fail the turn visibly instead of choosing one", async () => {
+  world = await createWorld();
+  const shop = startFakeMcp({
+    get_contact: { description: "Shop contact.", input: {} },
+  });
+  stops.push(shop.stop);
+  const { env } = respondioMcp();
+  const business = {
+    MCP_SERVERS: "shop",
+    MCP_SHOP_URL: shop.url,
+    MCP_SHOP_BEARER_TOKEN: "mcp-secret",
+    MCP_SHOP_TOOLS: "get_contact",
+  };
+  const app = await world.start({ ...env, ...business }, "respondio");
+  await notify(
+    app.url,
+    "main",
+    messageEvent({ contact: 5, traffic: "incoming", text: "Hi" }),
+    world.respondio.signingKey,
+  );
+
+  const ended = await app.waitForLog("turn.ended");
+  expect(ended.outcome).toBe("failed");
+  expect(String(ended.detail)).toContain(
+    'More than one tool is named "get_contact"',
+  );
+  expect(world.respondio.sent).toHaveLength(0);
 });

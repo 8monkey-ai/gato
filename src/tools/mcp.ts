@@ -1,6 +1,5 @@
 import { createMCPClient } from "@ai-sdk/mcp";
 import { dynamicTool, jsonSchema, type JSONSchema7, type ToolSet } from "ai";
-import { z } from "zod";
 
 import { type Env, envList } from "../env.ts";
 import { protectSecret } from "../log.ts";
@@ -10,7 +9,7 @@ export type OpenTools = { tools: ToolSet; close(): Promise<void> };
 export type McpServer = {
   name: string;
   url: string;
-  headers: Record<string, string>;
+  bearerToken?: string;
   tools: string[];
 };
 
@@ -33,34 +32,15 @@ export function mcpServersFromEnv(env: Env): McpServer[] {
     const url = env[`${prefix}_URL`];
     if (!url || !URL.canParse(url))
       throw new Error(`${prefix}_URL must be a URL`);
-    if (!/^[a-z][a-z0-9]*$/.test(name) || name === "respondio") {
+    if (!/^[a-z0-9]+$/.test(name) || name === "respondio") {
       throw new Error(
-        `MCP server name "${name}" must be a letter and then letters and digits, and not "respondio"`,
+        `MCP server name "${name}" must be letters and digits, and not "respondio"`,
       );
     }
-    const headers = parseHeaders(env[`${prefix}_HEADERS`], `${prefix}_HEADERS`);
-    return { name, url, headers, tools: envList(env[`${prefix}_TOOLS`]) };
+    const bearerToken = env[`${prefix}_BEARER_TOKEN`];
+    protectSecret(bearerToken);
+    return { name, url, bearerToken, tools: envList(env[`${prefix}_TOOLS`]) };
   });
-}
-
-function parseHeaders(
-  value: string | undefined,
-  variable: string,
-): Record<string, string> {
-  if (!value) return {};
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(value);
-  } catch {
-    parsed = undefined;
-  }
-  const headers = z.record(z.string(), z.string()).safeParse(parsed);
-  if (!headers.success)
-    throw new Error(
-      `${variable} must be a JSON object of header names and text values`,
-    );
-  for (const secret of Object.values(headers.data)) protectSecret(secret);
-  return headers.data;
 }
 
 export async function connectMcp(
@@ -71,7 +51,9 @@ export async function connectMcp(
     transport: {
       type: "http",
       url: server.url,
-      headers: server.headers,
+      headers: server.bearerToken
+        ? { authorization: `Bearer ${server.bearerToken}` }
+        : undefined,
     },
     initializationOptions: { timeout: 15_000 },
   });
@@ -91,7 +73,7 @@ export async function connectMcp(
     for (const offer of offered.filter((tool) =>
       server.tools.includes(tool.name),
     )) {
-      tools[`${server.name}__${offer.name}`] = toTool(client, offer, scope);
+      tools[offer.name] = toTool(client, offer, scope);
     }
     return { tools, close: () => client.close() };
   } catch (error) {

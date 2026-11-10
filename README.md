@@ -43,34 +43,34 @@ All configuration is in environment variables. Invalid values stop the startup w
 
 ### Harness
 
-| Variable                           | Default                        | Meaning                                                                                                                        |
-| ---------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `CONVERSATIONS_DIR`                | (required)                     | The data folder. It must exist and be writable.                                                                                |
-| `SKILLS_DIR`                       | (required)                     | The mounted skills checkout.                                                                                                   |
-| `AGENT_COUNTRY`                    | (required)                     | `MY` or `PH`.                                                                                                                  |
-| `AGENT_TIMEZONE`                   | `UTC`                          | IANA timezone for today's date, summaries, and nudge hours.                                                                    |
-| `HTTP_PORT`                        | `3000`                         | Port for webhooks and `/health`.                                                                                               |
-| `OPENROUTER_API_KEY`               | (required)                     | OpenRouter key.                                                                                                                |
-| `OPENROUTER_BASE_URL`              | `https://openrouter.ai/api/v1` | OpenRouter API address.                                                                                                        |
-| `AGENT_MODEL`                      | (required)                     | Base conversation model.                                                                                                       |
-| `SUMMARY_MODEL`                    | `AGENT_MODEL`                  | Model for contact summaries.                                                                                                   |
-| `IMAGE_PREPARATION_MODEL`          | (none)                         | Model that describes images. Without it, images go to the main call.                                                           |
-| `DOCUMENT_PREPARATION_MODEL`       | (none)                         | Model that reads documents. Without it, documents go to the main call.                                                         |
-| `AUDIO_PREPARATION_MODEL`          | (none)                         | Model that transcribes audio. Without it, audio goes to the main call.                                                         |
-| `TURN_TIMEOUT_SECONDS`             | `120`                          | Maximum time of one turn.                                                                                                      |
-| `TURN_MAX_MODEL_CALLS`             | `12`                           | Maximum model calls of one turn, including summary, preparation, tool rounds, and retries.                                     |
-| `DELIVERY_MESSAGE_BOUNDARY`        | `\n\n`                         | Text that separates two messages, for example three vertical bars. `\n` and `\t` are escapes. The agent instructions name it.  |
-| `DELIVERY_PACING`                  | `typing`                       | `typing` or `none`.                                                                                                            |
-| `DELIVERY_TYPING_SECONDS_PER_WORD` | `1`                            | Typing pace.                                                                                                                   |
-| `NUDGES_ENABLED`                   | `true`                         | Switches automatic nudges on or off.                                                                                           |
-| `NUDGES_CHECK_INTERVAL_SECONDS`    | `300`                          | Time between two nudge checks.                                                                                                 |
-| `NUDGES_MILESTONES_MINUTES`        | `5,35,755,765`                 | Nudge times after the latest real customer message.                                                                            |
-| `NUDGES_PERMITTED_HOURS`           | (all hours)                    | For example `09:00-18:00` in `AGENT_TIMEZONE`. Ranges past midnight are permitted.                                             |
-| `SHUTDOWN_TIMEOUT_SECONDS`         | `30`                           | Time that running turns get to finish after `SIGTERM`.                                                                         |
-| `MCP_SERVERS`                      | (none)                         | Names of business MCP servers, for example `crm,stock`.                                                                        |
-| `MCP_<NAME>_URL`                   | (required for each server)     | Streamable HTTP address of the server.                                                                                         |
-| `MCP_<NAME>_HEADERS`               | (none)                         | Request headers as a JSON object, for example `{"x-api-token":"…"}` or `{"authorization":"Bearer …"}`. The values are secrets. |
-| `MCP_<NAME>_TOOLS`                 | (none)                         | Permitted tools. The agent sees them as `<name>__<tool>`.                                                                      |
+| Variable                           | Default                        | Meaning                                                                                                                       |
+| ---------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `CONVERSATIONS_DIR`                | (required)                     | The data folder. It must exist and be writable.                                                                               |
+| `SKILLS_DIR`                       | (required)                     | The mounted skills checkout.                                                                                                  |
+| `AGENT_COUNTRY`                    | (required)                     | `MY` or `PH`.                                                                                                                 |
+| `AGENT_TIMEZONE`                   | `UTC`                          | IANA timezone for today's date, summaries, and nudge hours.                                                                   |
+| `HTTP_PORT`                        | `3000`                         | Port for webhooks and `/health`.                                                                                              |
+| `OPENROUTER_API_KEY`               | (required)                     | OpenRouter key.                                                                                                               |
+| `OPENROUTER_BASE_URL`              | `https://openrouter.ai/api/v1` | OpenRouter API address.                                                                                                       |
+| `AGENT_MODEL`                      | (required)                     | Base conversation model.                                                                                                      |
+| `SUMMARY_MODEL`                    | `AGENT_MODEL`                  | Model for contact summaries.                                                                                                  |
+| `IMAGE_PREPARATION_MODEL`          | (none)                         | Model that describes images. Without it, images go to the main call.                                                          |
+| `DOCUMENT_PREPARATION_MODEL`       | (none)                         | Model that reads documents. Without it, documents go to the main call.                                                        |
+| `AUDIO_PREPARATION_MODEL`          | (none)                         | Model that transcribes audio. Without it, audio goes to the main call.                                                        |
+| `TURN_TIMEOUT_SECONDS`             | `120`                          | Maximum time of one turn.                                                                                                     |
+| `TURN_MAX_MODEL_CALLS`             | `12`                           | Maximum model calls of one turn, including summary, preparation, tool rounds, and retries.                                    |
+| `DELIVERY_MESSAGE_BOUNDARY`        | `\n\n`                         | Text that separates two messages, for example three vertical bars. `\n` and `\t` are escapes. The agent instructions name it. |
+| `DELIVERY_PACING`                  | `typing`                       | `typing` or `none`.                                                                                                           |
+| `DELIVERY_TYPING_SECONDS_PER_WORD` | `1`                            | Typing pace.                                                                                                                  |
+| `NUDGES_ENABLED`                   | `true`                         | Switches automatic nudges on or off.                                                                                          |
+| `NUDGES_CHECK_INTERVAL_SECONDS`    | `300`                          | Time between two nudge checks.                                                                                                |
+| `NUDGES_MILESTONES_MINUTES`        | `5,35,755,765`                 | Nudge times after the latest real customer message.                                                                           |
+| `NUDGES_PERMITTED_HOURS`           | (all hours)                    | For example `09:00-18:00` in `AGENT_TIMEZONE`. Ranges past midnight are permitted.                                            |
+| `SHUTDOWN_TIMEOUT_SECONDS`         | `30`                           | Time that running turns get to finish after `SIGTERM`.                                                                        |
+| `MCP_SERVERS`                      | (none)                         | Names of business MCP servers, for example `crm,stock`.                                                                       |
+| `MCP_<NAME>_URL`                   | (required for each server)     | Streamable HTTP address of the server.                                                                                        |
+| `MCP_<NAME>_BEARER_TOKEN`          | (none)                         | Static bearer token for the server.                                                                                           |
+| `MCP_<NAME>_TOOLS`                 | (none)                         | Permitted tools. The agent sees them by their own names.                                                                      |
 
 ### Telegram
 
@@ -81,22 +81,22 @@ All configuration is in environment variables. Invalid values stop the startup w
 
 ### respond.io
 
-| Variable                                | Default                                                      | Meaning                                                      |
-| --------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| `RESPONDIO_WORKSPACES`                  | (none: respond.io is off)                                    | Names of workspace connections, for example `main`.          |
-| `RESPONDIO_API_URL`                     | `https://api.respond.io/v2`                                  | Developer API address.                                       |
-| `RESPONDIO_<NAME>_API_TOKEN`            | (required)                                                   | Developer API token.                                         |
-| `RESPONDIO_<NAME>_WEBHOOK_SIGNING_KEYS` | (required)                                                   | Comma-separated signing keys of the webhooks.                |
-| `RESPONDIO_<NAME>_AGENT_USER_ID`        | (none)                                                       | The respond.io user of the agent.                            |
-| `RESPONDIO_<NAME>_REPLY_CHANNEL_ID`     | (none: the platform selects the route)                       | A fixed messaging channel for replies.                       |
-| `RESPONDIO_<NAME>_HANDOFF_LABEL`        | `handoff`                                                    | Label for each handoff.                                      |
-| `RESPONDIO_<NAME>_OUT_OF_SCOPE_LABEL`   | `out-of-scope`                                               | Label for a handoff by the agent.                            |
-| `RESPONDIO_<NAME>_ERROR_LABEL`          | `error`                                                      | Label for a handoff after an error.                          |
-| `RESPONDIO_<NAME>_MCP_URL`              | (none: the MCP connection is off)                            | Address of the self-hosted respond.io MCP server.            |
-| `RESPONDIO_<NAME>_MCP_BEARER_TOKEN`     | (required with the URL)                                      | Static bearer token for the MCP server.                      |
-| `RESPONDIO_<NAME>_MCP_TOOLS`            | `get_contact,create_comment,add_contact_tags,update_contact` | Permitted tools. The agent sees them as `respondio__<tool>`. |
-| `RESPONDIO_<NAME>_MCP_EDITABLE_FIELDS`  | `firstName,lastName,language`                                | Contact fields that the agent can change.                    |
-| `RESPONDIO_<NAME>_MCP_LABELS`           | the handoff and out-of-scope labels                          | Labels that the agent can add.                               |
+| Variable                                | Default                                                      | Meaning                                             |
+| --------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------- |
+| `RESPONDIO_WORKSPACES`                  | (none: respond.io is off)                                    | Names of workspace connections, for example `main`. |
+| `RESPONDIO_API_URL`                     | `https://api.respond.io/v2`                                  | Developer API address.                              |
+| `RESPONDIO_<NAME>_API_TOKEN`            | (required)                                                   | Developer API token.                                |
+| `RESPONDIO_<NAME>_WEBHOOK_SIGNING_KEYS` | (required)                                                   | Comma-separated signing keys of the webhooks.       |
+| `RESPONDIO_<NAME>_AGENT_USER_ID`        | (none)                                                       | The respond.io user of the agent.                   |
+| `RESPONDIO_<NAME>_REPLY_CHANNEL_ID`     | (none: the platform selects the route)                       | A fixed messaging channel for replies.              |
+| `RESPONDIO_<NAME>_HANDOFF_LABEL`        | `handoff`                                                    | Label for each handoff.                             |
+| `RESPONDIO_<NAME>_OUT_OF_SCOPE_LABEL`   | `out-of-scope`                                               | Label for a handoff by the agent.                   |
+| `RESPONDIO_<NAME>_ERROR_LABEL`          | `error`                                                      | Label for a handoff after an error.                 |
+| `RESPONDIO_<NAME>_MCP_URL`              | (none: the MCP connection is off)                            | Address of the self-hosted respond.io MCP server.   |
+| `RESPONDIO_<NAME>_MCP_BEARER_TOKEN`     | (required with the URL)                                      | Static bearer token for the MCP server.             |
+| `RESPONDIO_<NAME>_MCP_TOOLS`            | `get_contact,create_comment,add_contact_tags,update_contact` | Permitted tools.                                    |
+| `RESPONDIO_<NAME>_MCP_EDITABLE_FIELDS`  | `firstName,lastName,language`                                | Contact fields that the agent can change.           |
+| `RESPONDIO_<NAME>_MCP_LABELS`           | the handoff and out-of-scope labels                          | Labels that the agent can add.                      |
 
 In respond.io, add two webhooks, "New Incoming Message" and "New Outgoing Message", to `https://<host>/respondio/<name>/webhook`. Put both signing keys in `RESPONDIO_<NAME>_WEBHOOK_SIGNING_KEYS`.
 
@@ -148,6 +148,7 @@ Migration tools write folders in this format. The harness reads them at startup 
 - OpenRouter drops files in assistant messages. Files that an operator, a workflow, or the agent sent go to the model in a user-side message directly after the message, with a note that names the sender.
 - Markdown links to media files are sent as attachments without the link text. Formatting stays as plain text.
 - At startup the model gateway must answer its model list. A configured model that is not in the list gives the warning `models.not_listed`, but the harness starts: gateways can resolve their own model names, for example agent aliases, only when they are called. A model that does not exist makes each turn fail visibly.
+- Tools keep the names that their MCP servers give them. If two tools have the same name, the turn fails with an error that names the tool, so that the agent never uses the wrong one.
 - A deliberate skip is a reply with no text. The turn outcome is `skipped` with an explanation.
 - After a restart, the harness does not run turns that stopped before they ended. A send that was on its way becomes `uncertain`. The nudge policy continues the conversation if the customer does not write again.
 - Nudges make at most one attempt for each conversation in each check, and agent messages and agent notes, including the "Nudge" note, are the agent activity. These rules are fixed.

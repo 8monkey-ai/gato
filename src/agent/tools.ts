@@ -31,16 +31,28 @@ export async function openTools(options: Options): Promise<OpenTools> {
       : []),
   ]);
   const opened = external.filter((tools) => tools !== undefined);
-  return {
-    tools: Object.assign(
-      {},
-      ...opened.map((t) => t.tools),
-      builtinTools(options),
-    ) as ToolSet,
-    close: async () => {
-      await Promise.all(opened.map((t) => t.close()));
-    },
+  const close = async () => {
+    await Promise.all(opened.map((t) => t.close()));
   };
+  try {
+    return {
+      tools: merge([...opened.map((t) => t.tools), builtinTools(options)]),
+      close,
+    };
+  } catch (error) {
+    await close();
+    throw error;
+  }
+}
+
+function merge(toolSets: ToolSet[]): ToolSet {
+  const merged: ToolSet = {};
+  for (const [name, tool] of toolSets.flatMap((set) => Object.entries(set))) {
+    if (name in merged)
+      throw new Error(`More than one tool is named "${name}"`);
+    merged[name] = tool;
+  }
+  return merged;
 }
 
 async function optional(name: string, open: () => Promise<OpenTools>) {

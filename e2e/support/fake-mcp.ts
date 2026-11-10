@@ -13,7 +13,7 @@ type ToolSpec = {
 
 export function startFakeMcp(
   tools: Record<string, ToolSpec>,
-  auth = { header: "authorization", value: "Bearer mcp-secret" },
+  bearerToken = "mcp-secret",
 ) {
   const calls: { name: string; args: Record<string, unknown> }[] = [];
   const authorizations: (string | null)[] = [];
@@ -39,8 +39,8 @@ export function startFakeMcp(
     port: 0,
     idleTimeout: 0,
     async fetch(request) {
-      authorizations.push(request.headers.get(auth.header));
-      if (request.headers.get(auth.header) !== auth.value) {
+      authorizations.push(request.headers.get("authorization"));
+      if (request.headers.get("authorization") !== `Bearer ${bearerToken}`) {
         return new Response("Unauthorized", { status: 401 });
       }
       const transport = new WebStandardStreamableHTTPServerTransport({
@@ -53,7 +53,7 @@ export function startFakeMcp(
   });
   return {
     url: `http://127.0.0.1:${http.port}/mcp`,
-    auth,
+    bearerToken,
     calls,
     authorizations,
     stop: () => http.stop(true),
