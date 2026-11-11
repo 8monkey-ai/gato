@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1
-FROM oven/bun:1.4.4 AS build
+# package.json names a Bun canary. Docker Hub tags canaries only as "canary", so the digest fixes the build.
+FROM oven/bun:canary@sha256:f6f46d24250e279c40e6946b81c78a3afa8b7d5910514a5d760b742203c36238 AS build
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN --mount=type=cache,target=/root/.bun/install/cache \
