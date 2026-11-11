@@ -10,7 +10,7 @@ import type { Connection } from "../channels/channel.ts";
 import type { Config } from "../config.ts";
 import type { createDelivery } from "../delivery/deliver.ts";
 import { createPartSplitter } from "../delivery/parts.ts";
-import { log, redact } from "../log.ts";
+import { log, redact, reportProblems } from "../log.ts";
 import type { Trigger } from "../record/chat-file.ts";
 import type { Conversation } from "../record/store.ts";
 import {
@@ -185,13 +185,4 @@ async function recordTool(
     });
     await edit.save();
   });
-}
-
-const reportedProblems = new Map<string, string>();
-
-function reportProblems(event: string, problems: string[]) {
-  const current = problems.join("\n");
-  if (current && current !== reportedProblems.get(event))
-    log.warn(event, { problems });
-  reportedProblems.set(event, current);
 }

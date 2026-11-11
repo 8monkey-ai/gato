@@ -29,3 +29,12 @@ export const log = {
   warn: (event: string, fields: Fields = {}) => write("warn", event, fields),
   error: (event: string, fields: Fields = {}) => write("error", event, fields),
 };
+
+const reportedProblems = new Map<string, string>();
+
+export function reportProblems(event: string, problems: string[]) {
+  const current = problems.join("\n");
+  if (current && current !== reportedProblems.get(event))
+    log.warn(event, { problems });
+  reportedProblems.set(event, current);
+}

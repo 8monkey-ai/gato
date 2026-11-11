@@ -56,6 +56,7 @@ async function unknownFiles(dir: string) {
   );
   return paths
     .filter((path) => !known.has(path))
+    .toSorted()
     .map((path) => `${path} is not a prompt file and is not used`);
 }
 

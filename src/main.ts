@@ -8,7 +8,7 @@ import { readConfig } from "./config.ts";
 import { createConversationService } from "./conversation/service.ts";
 import type { Env } from "./env.ts";
 import { startHttp } from "./http.ts";
-import { log, protectSecret } from "./log.ts";
+import { log, protectSecret, reportProblems } from "./log.ts";
 import { startNudges } from "./nudges/scheduler.ts";
 import { ConversationStore } from "./record/store.ts";
 import { loadInstructions } from "./skills/skills.ts";
@@ -24,10 +24,8 @@ async function prepare(env: Env) {
     loadPrompts(config.promptsDir),
     loadInstructions(config.skillsDir, config.country),
   ]);
-  if (prompts.problems.length)
-    log.warn("prompts.problems", { problems: prompts.problems });
-  if (instructions.problems.length)
-    log.warn("skills.problems", { problems: instructions.problems });
+  reportProblems("prompts.problems", prompts.problems);
+  reportProblems("skills.problems", instructions.problems);
   const mcpServers = mcpServersFromEnv(env);
   await Promise.all([
     checkModels(config),
