@@ -4,12 +4,13 @@ Gato is a conversation harness. An agent and human operators serve the same cust
 
 ## Commands
 
-| Command       | What it does                                               |
-| ------------- | ---------------------------------------------------------- |
-| `bun install` | Installs the dependencies.                                 |
-| `bun start`   | Starts the harness. It reads environment variables.        |
-| `bun check`   | Checks the format, lints, type-checks, and runs all tests. |
-| `bun test`    | Runs the unit tests and the end-to-end tests.              |
+| Command         | What it does                                                                                                                                                                            |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun install`   | Installs the dependencies.                                                                                                                                                              |
+| `bun start`     | Starts the harness. It reads environment variables.                                                                                                                                     |
+| `bun run build` | Compiles the harness and its prompts into the executable `dist/gato`. The executable does not read `.env` or `bunfig.toml`, because all configuration comes from environment variables. |
+| `bun check`     | Checks the format, lints, type-checks, and runs all tests.                                                                                                                              |
+| `bun test`      | Runs the unit tests and the end-to-end tests.                                                                                                                                           |
 
 Run `bun check` before you report work done and before each commit.
 
@@ -137,7 +138,7 @@ Migration tools write folders in this format. The harness reads them at startup 
 - Logs are JSON lines on standard output. They contain identifiers of connections, contacts, messages, and turns, but no message text. Configured secrets are replaced with `[secret]`.
 - On `SIGTERM`, the harness stops new work. respond.io notifications get `503`, so that respond.io sends them again later. Running turns can finish until `SHUTDOWN_TIMEOUT_SECONDS`. Then they stop, and the record keeps what was sent.
 - `Dockerfile` compiles the harness and its prompts into one executable with bytecode, and runs it on `gcr.io/distroless/cc-debian12` as uid `1000`. The image has no shell and no Bun installation. Mount the data folder and the skills checkout.
-- To change the prompts without a new image, mount a folder with each file of `prompts/` and set `PROMPTS_DIR`. Each turn reads the files again and keeps them until it ends. A missing or empty file stops the startup or fails the turn. The log event `prompts.problems` names other files in the folder.
+- To change the prompts without a new image, mount a folder with each file of `prompts/` and set `PROMPTS_DIR`. Each turn reads the files again and keeps them until it ends. A missing or empty file stops the startup or fails the turn. The log event `prompts.problems` names other files in the folder, but not hidden files and folders.
 
 ## Platform limits and decisions
 

@@ -1,10 +1,14 @@
 import { afterEach, expect, test } from "bun:test";
-import { rm } from "node:fs/promises";
+import { cp, rm, symlink } from "node:fs/promises";
 import { join } from "node:path";
 
+import { $ } from "bun";
+
 import {
+  type App,
   minutesAgo,
   readChat,
+  startApp,
   tempDir,
   waitUntil,
   writeChat,
@@ -61,12 +65,12 @@ async function turnEntry(contact: string) {
 
 test("§5 a mounted prompts folder replaces the built-in prompts", async () => {
   world = await createWorld();
-  const days = 5 * 24 * 60;
+  const fiveDays = 5 * 24 * 60;
   await writeChat(
     world.dataDir,
     world.telegram.connectionId,
     "42",
-    `[${minutesAgo(days)}] customer {"ref":"a"}\n  Hello\n\n[${minutesAgo(days - 1)}] agent {"delivery":"sent"}\n  Hi.\n`,
+    `[${minutesAgo(fiveDays)}] customer {"ref":"a"}\n  Hello\n\n[${minutesAgo(fiveDays - 1)}] agent {"delivery":"sent"}\n  Hi.\n`,
   );
   world.telegram.files.set("p", new Uint8Array([1, 2, 3]));
   await world.start({
@@ -93,52 +97,66 @@ test("§5 a mounted prompts folder replaces the built-in prompts", async () => {
   );
 });
 
-test("§5 without a mounted prompts folder the built-in prompts apply", async () => {
+// The source copy is deleted before the start, so a binary that reads prompts from the source tree fails.
+async function buildFromCopy(buildDir: string) {
+  const repoRoot = join(import.meta.dir, "..");
+  const source = join(buildDir, "source");
+  for (const entry of ["package.json", "tsconfig.json", "src", "prompts"])
+    await cp(join(repoRoot, entry), join(source, entry), { recursive: true });
+  await symlink(join(repoRoot, "node_modules"), join(source, "node_modules"));
+  const binary = join(buildDir, "gato");
+  await $`bun run build --outfile ${binary}`.cwd(source).quiet();
+  await rm(source, { recursive: true });
+  return binary;
+}
+
+test("§5 the harness build contains the default prompts", async () => {
   world = await createWorld();
-  await world.start();
-  world.telegram.push(42, { text: "Hi" });
-  await waitUntil(() => world.telegram.sent.length);
-
-  const [request] = world.llm.mainRequests();
-  expect(systemText(request!)).toStartWith(
-    "You are a customer service agent. You write to one customer through Telegram.",
+  const buildDir = await tempDir("gato-build-");
+  const binary = await buildFromCopy(buildDir);
+  const app = await startApp(
+    { ...world.baseEnv, ...world.telegramEnv },
+    { command: [binary], cwd: await tempDir("gato-cwd-") },
   );
-  expect(toolDescription(request!, "read_skill")).toStartWith(
-    "Read a skill or one of its reference files.",
-  );
-});
+  try {
+    expect(app.started).toBe(true);
+    world.telegram.push(42, { text: "Hi" });
+    await waitUntil(() => world.telegram.sent.length);
+    expect(systemText(world.llm.mainRequests()[0]!)).toStartWith(
+      "You are a customer service agent. You write to one customer through Telegram.",
+    );
+  } finally {
+    await app.stop();
+    await rm(buildDir, { recursive: true });
+  }
+}, 30_000);
 
-test("§5 a changed prompt file applies to the next turn", async () => {
+test("§5 a changed prompt file applies to the next turn and not to the running turn", async () => {
   world = await createWorld();
   const dir = await writePrompts();
-  await world.start({ PROMPTS_DIR: dir });
-  world.telegram.push(42, { text: "One" });
-  await waitUntil(() => world.telegram.sent.length);
-  await Bun.write(join(dir, "conversation.md"), "Updated rules.");
-  world.telegram.push(42, { text: "Two" });
-  await waitUntil(() => world.telegram.sent.length === 2);
-
-  expect(systemText(world.llm.mainRequests()[1]!)).toBe("Updated rules.");
-});
-
-test("§5 a turn keeps the prompts it started with", async () => {
-  world = await createWorld();
-  const dir = await writePrompts();
+  let changed = false;
   world.llm.respond(async (request) => {
     if (request.messages.some((m) => m.role === "tool")) return { text: "Ok." };
-    await Bun.write(join(dir, "conversation.md"), "Updated rules.");
-    await Bun.write(join(dir, "tool-read-skill.md"), "Updated tool.");
+    if (!changed) {
+      changed = true;
+      await Bun.write(join(dir, "conversation.md"), "Updated rules.");
+      await Bun.write(join(dir, "tool-read-skill.md"), "Updated tool.");
+    }
     return { toolCalls: [{ name: "read_skill", args: { skill: "menu" } }] };
   });
   await world.start({ PROMPTS_DIR: dir });
-  world.telegram.push(42, { text: "Price?" });
+  world.telegram.push(42, { text: "One" });
   await waitUntil(() => world.telegram.sent.length);
+  world.telegram.push(42, { text: "Two" });
+  await waitUntil(() => world.telegram.sent.length === 2);
 
-  const second = world.llm.mainRequests()[1]!;
-  expect(systemText(second)).toBe("Mounted rules for Telegram.");
-  expect(toolDescription(second, "read_skill")).toBe(
+  const [, running, next] = world.llm.mainRequests();
+  expect(systemText(running!)).toBe("Mounted rules for Telegram.");
+  expect(toolDescription(running!, "read_skill")).toBe(
     "Mounted tool-read-skill.",
   );
+  expect(systemText(next!)).toBe("Updated rules.");
+  expect(toolDescription(next!, "read_skill")).toBe("Updated tool.");
 });
 
 test("§5 a missing or empty prompt file prevents startup and names the file", async () => {
@@ -174,21 +192,47 @@ test("§5 a prompt that becomes missing or empty fails the turn visibly", async 
   expect(world.telegram.sent).toHaveLength(0);
 });
 
-test("§5 files in a mounted prompts folder that are not prompts are reported", async () => {
-  world = await createWorld();
-  const dir = await writePrompts({
-    "notes.txt": "x",
-    "old/summary.md": "x",
-    ".git/HEAD": "x",
-    "..data": "x",
-    "..2024_01_01/summary.md": "x",
-  });
-  const app = await world.start({ PROMPTS_DIR: dir });
+const problemLogs = (app: App) =>
+  app.logs.filter((l) => l.event === "prompts.problems").map((l) => l.problems);
 
-  expect(app.started).toBe(true);
-  const line = await app.waitForLog("prompts.problems");
-  expect((line.problems as string[]).toSorted()).toEqual([
-    "notes.txt is not a prompt file and is not used",
-    "old/summary.md is not a prompt file and is not used",
+test("§5 hidden files and folders in a mounted prompts folder are not reported", async () => {
+  world = await createWorld();
+  const dir = await tempDir("gato-prompts-");
+  for (const name of promptNames) {
+    await Bun.write(
+      join(dir, "..2024_01_01", `${name}.md`),
+      `Mounted ${name}.`,
+    );
+    await symlink(`..data/${name}.md`, join(dir, `${name}.md`));
+  }
+  await symlink("..2024_01_01", join(dir, "..data"));
+  await Bun.write(join(dir, "notes.txt"), "x");
+  await Bun.write(join(dir, "old/summary.md"), "x");
+  const app = await world.start({ PROMPTS_DIR: dir });
+  world.telegram.push(42, { text: "Hi" });
+  await waitUntil(() => world.telegram.sent.length);
+
+  expect(systemText(world.llm.mainRequests()[0]!)).toBe(
+    "Mounted conversation.",
+  );
+  expect(problemLogs(app)).toEqual([
+    [
+      "notes.txt is not a prompt file and is not used",
+      "old/summary.md is not a prompt file and is not used",
+    ],
+  ]);
+});
+
+test("§5 a file that appears in the mounted prompts folder is reported once", async () => {
+  world = await createWorld();
+  const dir = await writePrompts();
+  const app = await world.start({ PROMPTS_DIR: dir });
+  await Bun.write(join(dir, "notes.txt"), "x");
+  world.telegram.push(42, { text: "Hi" });
+  await app.waitForLog("prompts.problems");
+  await waitUntil(() => world.telegram.sent.length);
+
+  expect(problemLogs(app)).toEqual([
+    ["notes.txt is not a prompt file and is not used"],
   ]);
 });

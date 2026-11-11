@@ -8,13 +8,11 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
 COPY tsconfig.json ./
 COPY prompts ./prompts
 COPY src ./src
-# Configuration comes only from the environment, so the binary must not read .env or bunfig.toml.
-RUN bun build src/main.ts --compile --minify --sourcemap --bytecode \
-    --no-compile-autoload-dotenv --no-compile-autoload-bunfig --outfile gato
+RUN bun run build
 
 # The binary contains the Bun runtime, so the image needs no Bun installation.
 FROM gcr.io/distroless/cc-debian12
-COPY --from=build /app/gato /gato
+COPY --from=build /app/dist/gato /gato
 # The uid of the "bun" user in oven/bun, so existing data mounts stay writable.
 USER 1000:1000
 EXPOSE 3000
