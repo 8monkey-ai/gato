@@ -1,14 +1,14 @@
 import { join } from "node:path";
 
-import continuePath from "../../prompts/continue.md" with { type: "file" };
-import conversationPath from "../../prompts/conversation.md" with { type: "file" };
-import nudgePath from "../../prompts/nudge.md" with { type: "file" };
-import prepareAudioPath from "../../prompts/prepare-audio.md" with { type: "file" };
-import prepareDocumentPath from "../../prompts/prepare-document.md" with { type: "file" };
-import prepareImagePath from "../../prompts/prepare-image.md" with { type: "file" };
-import summaryPath from "../../prompts/summary.md" with { type: "file" };
-import toolHandoffPath from "../../prompts/tool-handoff.md" with { type: "file" };
-import toolReadSkillPath from "../../prompts/tool-read-skill.md" with { type: "file" };
+import continuePath from "../../prompts/continue.txt" with { type: "file" };
+import conversationPath from "../../prompts/conversation.txt" with { type: "file" };
+import nudgePath from "../../prompts/nudge.txt" with { type: "file" };
+import prepareAudioPath from "../../prompts/prepare-audio.txt" with { type: "file" };
+import prepareDocumentPath from "../../prompts/prepare-document.txt" with { type: "file" };
+import prepareImagePath from "../../prompts/prepare-image.txt" with { type: "file" };
+import summaryPath from "../../prompts/summary.txt" with { type: "file" };
+import toolHandoffPath from "../../prompts/tool-handoff.txt" with { type: "file" };
+import toolReadSkillPath from "../../prompts/tool-read-skill.txt" with { type: "file" };
 
 // File imports put the defaults into the compiled binary, so the image needs no prompts folder.
 const defaults = {
@@ -32,7 +32,7 @@ export async function loadPrompts(dir?: string) {
         async ([name, path]) =>
           [
             name,
-            await readPrompt(dir ? join(dir, `${name}.md`) : path),
+            await readPrompt(dir ? join(dir, `${name}.txt`) : path),
           ] as const,
       ),
     ),
@@ -50,7 +50,7 @@ async function readPrompt(path: string) {
 }
 
 async function unknownFiles(dir: string) {
-  const known = new Set(Object.keys(defaults).map((name) => `${name}.md`));
+  const known = new Set(Object.keys(defaults).map((name) => `${name}.txt`));
   const paths = await Array.fromAsync(
     new Bun.Glob("**").scan({ cwd: dir, followSymlinks: true }),
   );

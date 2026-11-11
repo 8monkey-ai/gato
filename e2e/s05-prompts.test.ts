@@ -39,9 +39,9 @@ async function writePrompts(files: Record<string, string> = {}) {
   const dir = await tempDir("gato-prompts-");
   const all = {
     ...Object.fromEntries(
-      promptNames.map((name) => [`${name}.md`, `Mounted ${name}.`]),
+      promptNames.map((name) => [`${name}.txt`, `Mounted ${name}.`]),
     ),
-    "conversation.md": "Mounted rules for {{channel}}.\n",
+    "conversation.txt": "Mounted rules for {{channel}}.\n",
     ...files,
   };
   for (const [path, text] of Object.entries(all))
@@ -139,8 +139,8 @@ test("§5 a changed prompt file applies to the next turn and not to the running 
     if (request.messages.some((m) => m.role === "tool")) return { text: "Ok." };
     if (!changed) {
       changed = true;
-      await Bun.write(join(dir, "conversation.md"), "Updated rules.");
-      await Bun.write(join(dir, "tool-read-skill.md"), "Updated tool.");
+      await Bun.write(join(dir, "conversation.txt"), "Updated rules.");
+      await Bun.write(join(dir, "tool-read-skill.txt"), "Updated tool.");
     }
     return { toolCalls: [{ name: "read_skill", args: { skill: "menu" } }] };
   });
@@ -162,33 +162,33 @@ test("§5 a changed prompt file applies to the next turn and not to the running 
 test("§5 a missing or empty prompt file prevents startup and names the file", async () => {
   world = await createWorld();
   const missing = await writePrompts();
-  await rm(join(missing, "nudge.md"));
-  const empty = await writePrompts({ "summary.md": " \n" });
+  await rm(join(missing, "nudge.txt"));
+  const empty = await writePrompts({ "summary.txt": " \n" });
 
   const first = await world.start({ PROMPTS_DIR: missing });
   expect(first.started).toBe(false);
-  expect(first.startError).toContain(join(missing, "nudge.md"));
+  expect(first.startError).toContain(join(missing, "nudge.txt"));
   const second = await world.start({ PROMPTS_DIR: empty });
   expect(second.started).toBe(false);
-  expect(second.startError).toContain(join(empty, "summary.md"));
+  expect(second.startError).toContain(join(empty, "summary.txt"));
 });
 
 test("§5 a prompt that becomes missing or empty fails the turn visibly", async () => {
   world = await createWorld();
   const dir = await writePrompts();
   await world.start({ PROMPTS_DIR: dir });
-  await rm(join(dir, "conversation.md"));
+  await rm(join(dir, "conversation.txt"));
   world.telegram.push(42, { text: "Hi" });
   const missing = await turnEntry("42");
-  await Bun.write(join(dir, "conversation.md"), "Rules.");
-  await Bun.write(join(dir, "continue.md"), "");
+  await Bun.write(join(dir, "conversation.txt"), "Rules.");
+  await Bun.write(join(dir, "continue.txt"), "");
   world.telegram.push(43, { text: "Hi" });
   const empty = await turnEntry("43");
 
   expect(missing.meta.outcome).toBe("failed");
-  expect(missing.text).toContain(join(dir, "conversation.md"));
+  expect(missing.text).toContain(join(dir, "conversation.txt"));
   expect(empty.meta.outcome).toBe("failed");
-  expect(empty.text).toContain(join(dir, "continue.md"));
+  expect(empty.text).toContain(join(dir, "continue.txt"));
   expect(world.telegram.sent).toHaveLength(0);
 });
 
@@ -200,14 +200,14 @@ test("§5 hidden files and folders in a mounted prompts folder are not reported"
   const dir = await tempDir("gato-prompts-");
   for (const name of promptNames) {
     await Bun.write(
-      join(dir, "..2024_01_01", `${name}.md`),
+      join(dir, "..2024_01_01", `${name}.txt`),
       `Mounted ${name}.`,
     );
-    await symlink(`..data/${name}.md`, join(dir, `${name}.md`));
+    await symlink(`..data/${name}.txt`, join(dir, `${name}.txt`));
   }
   await symlink("..2024_01_01", join(dir, "..data"));
   await Bun.write(join(dir, "notes.txt"), "x");
-  await Bun.write(join(dir, "old/summary.md"), "x");
+  await Bun.write(join(dir, "old/summary.txt"), "x");
   const app = await world.start({ PROMPTS_DIR: dir });
   world.telegram.push(42, { text: "Hi" });
   await waitUntil(() => world.telegram.sent.length);
@@ -218,7 +218,7 @@ test("§5 hidden files and folders in a mounted prompts folder are not reported"
   expect(problemLogs(app)).toEqual([
     [
       "notes.txt is not a prompt file and is not used",
-      "old/summary.md is not a prompt file and is not used",
+      "old/summary.txt is not a prompt file and is not used",
     ],
   ]);
 });
