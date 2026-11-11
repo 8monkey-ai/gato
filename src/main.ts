@@ -20,7 +20,7 @@ const channels: ChannelFactory[] = [telegram, respondio];
 async function prepare(env: Env) {
   const config = readConfig(env);
   protectSecret(config.openrouter.apiKey);
-  const prompts = await loadPrompts();
+  const prompts = loadPrompts();
   const instructions = await loadInstructions(config.skillsDir, config.country);
   if (instructions.problems.length)
     log.warn("skills.problems", { problems: instructions.problems });
