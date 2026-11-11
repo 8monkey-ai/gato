@@ -1,4 +1,4 @@
 declare module "*.md" {
-  const text: string;
-  export default text;
+  const path: string;
+  export default path;
 }

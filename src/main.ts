@@ -20,8 +20,12 @@ const channels: ChannelFactory[] = [telegram, respondio];
 async function prepare(env: Env) {
   const config = readConfig(env);
   protectSecret(config.openrouter.apiKey);
-  const prompts = loadPrompts();
-  const instructions = await loadInstructions(config.skillsDir, config.country);
+  const [prompts, instructions] = await Promise.all([
+    loadPrompts(config.promptsDir),
+    loadInstructions(config.skillsDir, config.country),
+  ]);
+  if (prompts.problems.length)
+    log.warn("prompts.problems", { problems: prompts.problems });
   if (instructions.problems.length)
     log.warn("skills.problems", { problems: instructions.problems });
   const mcpServers = mcpServersFromEnv(env);
@@ -40,7 +44,6 @@ async function prepare(env: Env) {
   }
   const runTurn = createTurnRunner({
     config,
-    prompts,
     gateway: createGateway(config.openrouter),
     mcpServers,
   });

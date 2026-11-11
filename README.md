@@ -33,7 +33,7 @@ Run `bun check` before you report work done and before each commit.
 | `src/skills/`       | The skills checkout and the country filter.                                     |
 | `src/tools/`        | MCP connections.                                                                |
 | `src/nudges/`       | The nudge policy and the periodic check.                                        |
-| `prompts/`          | Every instruction that the harness gives to a model.                            |
+| `prompts/`          | The default files of every instruction that the harness gives to a model.       |
 
 To add a channel, add a folder in `src/channels/` with a `ChannelFactory`, and add the factory to the list in `src/main.ts`. The adapter reads its own environment variables.
 
@@ -47,6 +47,7 @@ All configuration is in environment variables. Invalid values stop the startup w
 | ---------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
 | `CONVERSATIONS_DIR`                | (required)                     | The data folder. It must exist and be writable.                                                                               |
 | `SKILLS_DIR`                       | (required)                     | The mounted skills checkout.                                                                                                  |
+| `PROMPTS_DIR`                      | (the built-in prompts)         | A mounted prompts folder. It replaces all built-in prompts, so it must contain each file of `prompts/`.                       |
 | `AGENT_COUNTRY`                    | (required)                     | `MY` or `PH`.                                                                                                                 |
 | `AGENT_TIMEZONE`                   | `UTC`                          | IANA timezone for today's date, summaries, and nudge hours.                                                                   |
 | `HTTP_PORT`                        | `3000`                         | Port for webhooks and `/health`.                                                                                              |
@@ -136,6 +137,7 @@ Migration tools write folders in this format. The harness reads them at startup 
 - Logs are JSON lines on standard output. They contain identifiers of connections, contacts, messages, and turns, but no message text. Configured secrets are replaced with `[secret]`.
 - On `SIGTERM`, the harness stops new work. respond.io notifications get `503`, so that respond.io sends them again later. Running turns can finish until `SHUTDOWN_TIMEOUT_SECONDS`. Then they stop, and the record keeps what was sent.
 - `Dockerfile` compiles the harness and its prompts into one executable with bytecode, and runs it on `gcr.io/distroless/cc-debian12` as uid `1000`. The image has no shell and no Bun installation. Mount the data folder and the skills checkout.
+- To change the prompts without a new image, mount a folder with each file of `prompts/` and set `PROMPTS_DIR`. Each turn reads the files again and keeps them until it ends. A missing or empty file stops the startup or fails the turn. The log event `prompts.problems` names other files in the folder.
 
 ## Platform limits and decisions
 
@@ -150,7 +152,7 @@ Migration tools write folders in this format. The harness reads them at startup 
 - Markdown links to media files are sent as attachments without the link text. Formatting stays as plain text.
 - At startup the model gateway must answer its model list. A configured model that is not in the list gives the warning `models.not_listed`, but the harness starts: gateways can resolve their own model names, for example agent aliases, only when they are called. A model that does not exist makes each turn fail visibly.
 - Tools keep the names that their MCP servers give them. If two tools have the same name, the turn fails with an error that names the tool, so that the agent never uses the wrong one.
-- Model gateways refuse a request that ends with an assistant message. When the visible history ends with messages from the agent or the team, for example because a customer message arrived late, the turn adds the private user-side note `prompts/continue.md` after them. The history keeps its order, and the note is not recorded as a customer message.
+- Model gateways refuse a request that ends with an assistant message. When the visible history ends with messages from the agent or the team, for example because a customer message arrived late, the turn adds the private user-side note from the `continue.md` prompt after them. The history keeps its order, and the note is not recorded as a customer message.
 - A deliberate skip is a reply with no text. The turn outcome is `skipped` with an explanation.
 - After a restart, the harness does not run turns that stopped before they ended. A send that was on its way becomes `uncertain`. The nudge policy continues the conversation if the customer does not write again.
 - Nudges make at most one attempt for each conversation in each check, and agent messages and agent notes, including the "Nudge" note, are the agent activity. These rules are fixed.
