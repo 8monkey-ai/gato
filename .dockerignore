@@ -1,4 +1,7 @@
-node_modules
-e2e
-.git
-*.test.ts
+*
+!package.json
+!bun.lock
+!tsconfig.json
+!prompts
+!src
+**/*.test.ts
