@@ -11,6 +11,7 @@ const schema = z.object({
   HTTP_PORT: z.coerce.number().int().min(0).max(65535).default(3000),
   CONVERSATIONS_DIR: z.string().min(1),
   SKILLS_DIR: z.string().min(1),
+  PROMPTS_DIR: optionalText,
   AGENT_COUNTRY: z
     .string()
     .transform((value) => value.toLowerCase())
@@ -77,6 +78,7 @@ function toConfig(env: z.infer<typeof schema>) {
     port: env.HTTP_PORT,
     conversationsDir: env.CONVERSATIONS_DIR,
     skillsDir: env.SKILLS_DIR,
+    promptsDir: env.PROMPTS_DIR,
     country: env.AGENT_COUNTRY,
     timezone: env.AGENT_TIMEZONE,
     openrouter: {

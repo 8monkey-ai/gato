@@ -10,7 +10,7 @@ import type { Connection } from "../channels/channel.ts";
 import type { Config } from "../config.ts";
 import type { createDelivery } from "../delivery/deliver.ts";
 import { createPartSplitter } from "../delivery/parts.ts";
-import { log, redact } from "../log.ts";
+import { log, redact, reportProblems } from "../log.ts";
 import type { Trigger } from "../record/chat-file.ts";
 import type { Conversation } from "../record/store.ts";
 import {
@@ -22,13 +22,12 @@ import type { McpServer } from "../tools/mcp.ts";
 import { buildContext } from "./context.ts";
 import type { Budget, createGateway } from "./models.ts";
 import { createPreparer } from "./preparation.ts";
-import { fillTemplate, type Prompts } from "./prompts.ts";
+import { fillTemplate, loadPrompts, type Prompts } from "./prompts.ts";
 import { contactSummary } from "./summary.ts";
 import { openTools } from "./tools.ts";
 
 export type AgentDeps = {
   config: Config;
-  prompts: Prompts;
   gateway: ReturnType<typeof createGateway>;
   mcpServers: readonly McpServer[];
 };
@@ -44,11 +43,15 @@ export type Turn = {
 };
 
 export async function generate(deps: AgentDeps, turn: Turn): Promise<boolean> {
-  const { config, prompts } = deps;
+  const { config } = deps;
   const { conversation, connection, budget } = turn;
-  const instructions = await loadInstructions(config.skillsDir, config.country);
-  reportProblems(instructions.problems);
-  const messages = await turnMessages(deps, turn);
+  const [{ prompts, problems }, instructions] = await Promise.all([
+    loadPrompts(config.promptsDir),
+    loadInstructions(config.skillsDir, config.country),
+  ]);
+  reportProblems("prompts.problems", problems);
+  reportProblems("skills.problems", instructions.problems);
+  const messages = await turnMessages(config, prompts, turn);
   const tools = await openTools({
     instructions,
     prompts,
@@ -62,7 +65,7 @@ export async function generate(deps: AgentDeps, turn: Turn): Promise<boolean> {
         config.models.agent,
         turn.trigger === "nudge" ? "nudge" : "message",
       ),
-      instructions: systemPrompt(deps, connection, instructions),
+      instructions: systemPrompt(config, prompts, connection, instructions),
       messages,
       tools: tools.tools,
       // The budget stops the turn at the limit and reports it; a lower stop would hide that.
@@ -75,7 +78,7 @@ export async function generate(deps: AgentDeps, turn: Turn): Promise<boolean> {
   }
 }
 
-async function turnMessages({ config, prompts }: AgentDeps, turn: Turn) {
+async function turnMessages(config: Config, prompts: Prompts, turn: Turn) {
   const { conversation, connection, budget } = turn;
   const summary = await contactSummary(conversation, {
     model: turn.model(config.models.summary, "summary"),
@@ -109,7 +112,8 @@ async function turnMessages({ config, prompts }: AgentDeps, turn: Turn) {
 }
 
 function systemPrompt(
-  { config, prompts }: AgentDeps,
+  config: Config,
+  prompts: Prompts,
   connection: Connection,
   instructions: Instructions,
 ) {
@@ -181,13 +185,4 @@ async function recordTool(
     });
     await edit.save();
   });
-}
-
-let reportedProblems = "";
-
-function reportProblems(problems: string[]) {
-  const current = problems.join("\n");
-  if (current && current !== reportedProblems)
-    log.warn("skills.problems", { problems });
-  reportedProblems = current;
 }

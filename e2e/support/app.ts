@@ -50,9 +50,12 @@ function collect(proc: Bun.Subprocess<"ignore", "pipe", "pipe">) {
   return { logs, output };
 }
 
-export async function startApp(env: Record<string, string>) {
-  const proc = Bun.spawn(["bun", "src/main.ts"], {
-    cwd: repoRoot,
+export async function startApp(
+  env: Record<string, string>,
+  { command = ["bun", "src/main.ts"], cwd = repoRoot } = {},
+) {
+  const proc = Bun.spawn(command, {
+    cwd,
     env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", ...env },
     stdin: "ignore",
     stdout: "pipe",

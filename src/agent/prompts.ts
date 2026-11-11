@@ -1,30 +1,63 @@
-const names = [
-  "conversation",
-  "summary",
-  "prepare-image",
-  "prepare-document",
-  "prepare-audio",
-  "nudge",
-  "continue",
-  "tool-read-skill",
-  "tool-handoff",
-] as const;
+import { join } from "node:path";
 
-export type Prompts = Record<(typeof names)[number], string>;
+import continuePath from "../../prompts/continue.txt" with { type: "file" };
+import conversationPath from "../../prompts/conversation.txt" with { type: "file" };
+import nudgePath from "../../prompts/nudge.txt" with { type: "file" };
+import prepareAudioPath from "../../prompts/prepare-audio.txt" with { type: "file" };
+import prepareDocumentPath from "../../prompts/prepare-document.txt" with { type: "file" };
+import prepareImagePath from "../../prompts/prepare-image.txt" with { type: "file" };
+import summaryPath from "../../prompts/summary.txt" with { type: "file" };
+import toolHandoffPath from "../../prompts/tool-handoff.txt" with { type: "file" };
+import toolReadSkillPath from "../../prompts/tool-read-skill.txt" with { type: "file" };
 
-export async function loadPrompts(): Promise<Prompts> {
-  const entries = await Promise.all(
-    names.map(async (name) => {
-      const text = (
-        await Bun.file(
-          new URL(`../../prompts/${name}.md`, import.meta.url),
-        ).text()
-      ).trim();
-      if (!text) throw new Error(`Prompt file prompts/${name}.md is empty`);
-      return [name, text] as const;
-    }),
+// File imports put the defaults into the compiled binary, so the image needs no prompts folder.
+const defaults = {
+  continue: continuePath,
+  conversation: conversationPath,
+  nudge: nudgePath,
+  "prepare-audio": prepareAudioPath,
+  "prepare-document": prepareDocumentPath,
+  "prepare-image": prepareImagePath,
+  summary: summaryPath,
+  "tool-handoff": toolHandoffPath,
+  "tool-read-skill": toolReadSkillPath,
+};
+
+export type Prompts = Record<keyof typeof defaults, string>;
+
+export async function loadPrompts(dir?: string) {
+  const [entries, problems] = await Promise.all([
+    Promise.all(
+      Object.entries(defaults).map(
+        async ([name, path]) =>
+          [
+            name,
+            await readPrompt(dir ? join(dir, `${name}.txt`) : path),
+          ] as const,
+      ),
+    ),
+    dir ? unknownFiles(dir) : [],
+  ]);
+  return { prompts: Object.fromEntries(entries) as Prompts, problems };
+}
+
+async function readPrompt(path: string) {
+  const file = Bun.file(path);
+  if (!(await file.exists())) throw new Error(`${path} is missing`);
+  const text = (await file.text()).trim();
+  if (!text) throw new Error(`${path} is empty`);
+  return text;
+}
+
+async function unknownFiles(dir: string) {
+  const known = new Set(Object.keys(defaults).map((name) => `${name}.txt`));
+  const paths = await Array.fromAsync(
+    new Bun.Glob("**").scan({ cwd: dir, followSymlinks: true }),
   );
-  return Object.fromEntries(entries) as Prompts;
+  return paths
+    .filter((path) => !known.has(path))
+    .toSorted()
+    .map((path) => `${path} is not a prompt file and is not used`);
 }
 
 export function fillTemplate(

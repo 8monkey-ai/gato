@@ -8,7 +8,7 @@ import { readConfig } from "./config.ts";
 import { createConversationService } from "./conversation/service.ts";
 import type { Env } from "./env.ts";
 import { startHttp } from "./http.ts";
-import { log, protectSecret } from "./log.ts";
+import { log, protectSecret, reportProblems } from "./log.ts";
 import { startNudges } from "./nudges/scheduler.ts";
 import { ConversationStore } from "./record/store.ts";
 import { loadInstructions } from "./skills/skills.ts";
@@ -20,10 +20,12 @@ const channels: ChannelFactory[] = [telegram, respondio];
 async function prepare(env: Env) {
   const config = readConfig(env);
   protectSecret(config.openrouter.apiKey);
-  const prompts = await loadPrompts();
-  const instructions = await loadInstructions(config.skillsDir, config.country);
-  if (instructions.problems.length)
-    log.warn("skills.problems", { problems: instructions.problems });
+  const [prompts, instructions] = await Promise.all([
+    loadPrompts(config.promptsDir),
+    loadInstructions(config.skillsDir, config.country),
+  ]);
+  reportProblems("prompts.problems", prompts.problems);
+  reportProblems("skills.problems", instructions.problems);
   const mcpServers = mcpServersFromEnv(env);
   await Promise.all([
     checkModels(config),
@@ -40,7 +42,6 @@ async function prepare(env: Env) {
   }
   const runTurn = createTurnRunner({
     config,
-    prompts,
     gateway: createGateway(config.openrouter),
     mcpServers,
   });
