@@ -1,26 +1,26 @@
 import { join } from "node:path";
 
-import continueNote from "../../prompts/continue.md" with { type: "file" };
-import conversation from "../../prompts/conversation.md" with { type: "file" };
-import nudge from "../../prompts/nudge.md" with { type: "file" };
-import prepareAudio from "../../prompts/prepare-audio.md" with { type: "file" };
-import prepareDocument from "../../prompts/prepare-document.md" with { type: "file" };
-import prepareImage from "../../prompts/prepare-image.md" with { type: "file" };
-import summary from "../../prompts/summary.md" with { type: "file" };
-import toolHandoff from "../../prompts/tool-handoff.md" with { type: "file" };
-import toolReadSkill from "../../prompts/tool-read-skill.md" with { type: "file" };
+import continuePath from "../../prompts/continue.md" with { type: "file" };
+import conversationPath from "../../prompts/conversation.md" with { type: "file" };
+import nudgePath from "../../prompts/nudge.md" with { type: "file" };
+import prepareAudioPath from "../../prompts/prepare-audio.md" with { type: "file" };
+import prepareDocumentPath from "../../prompts/prepare-document.md" with { type: "file" };
+import prepareImagePath from "../../prompts/prepare-image.md" with { type: "file" };
+import summaryPath from "../../prompts/summary.md" with { type: "file" };
+import toolHandoffPath from "../../prompts/tool-handoff.md" with { type: "file" };
+import toolReadSkillPath from "../../prompts/tool-read-skill.md" with { type: "file" };
 
 // File imports put the defaults into the compiled binary, so the image needs no prompts folder.
 const defaults = {
-  conversation,
-  summary,
-  "prepare-image": prepareImage,
-  "prepare-document": prepareDocument,
-  "prepare-audio": prepareAudio,
-  nudge,
-  continue: continueNote,
-  "tool-read-skill": toolReadSkill,
-  "tool-handoff": toolHandoff,
+  continue: continuePath,
+  conversation: conversationPath,
+  nudge: nudgePath,
+  "prepare-audio": prepareAudioPath,
+  "prepare-document": prepareDocumentPath,
+  "prepare-image": prepareImagePath,
+  summary: summaryPath,
+  "tool-handoff": toolHandoffPath,
+  "tool-read-skill": toolReadSkillPath,
 };
 
 export type Prompts = Record<keyof typeof defaults, string>;
@@ -28,10 +28,13 @@ export type Prompts = Record<keyof typeof defaults, string>;
 export async function loadPrompts(dir?: string) {
   const [entries, problems] = await Promise.all([
     Promise.all(
-      Object.entries(defaults).map(async ([name, path]) => {
-        const text = await readPrompt(dir ? join(dir, `${name}.md`) : path);
-        return [name, text] as const;
-      }),
+      Object.entries(defaults).map(
+        async ([name, path]) =>
+          [
+            name,
+            await readPrompt(dir ? join(dir, `${name}.md`) : path),
+          ] as const,
+      ),
     ),
     dir ? unknownFiles(dir) : [],
   ]);
@@ -48,15 +51,12 @@ async function readPrompt(path: string) {
 
 async function unknownFiles(dir: string) {
   const known = new Set(Object.keys(defaults).map((name) => `${name}.md`));
-  const problems: string[] = [];
-  for await (const path of new Bun.Glob("**").scan({
-    cwd: dir,
-    followSymlinks: true,
-  })) {
-    if (known.has(path)) continue;
-    problems.push(`${path} is not a prompt file and is not used`);
-  }
-  return problems;
+  const paths = await Array.fromAsync(
+    new Bun.Glob("**").scan({ cwd: dir, followSymlinks: true }),
+  );
+  return paths
+    .filter((path) => !known.has(path))
+    .map((path) => `${path} is not a prompt file and is not used`);
 }
 
 export function fillTemplate(
