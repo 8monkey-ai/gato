@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # The publish workflow calls this workflow before it builds the image.
+  workflow_call:
 
 jobs:
   quality:
