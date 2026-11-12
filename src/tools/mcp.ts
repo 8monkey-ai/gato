@@ -94,12 +94,18 @@ function toTool(client: Client, offer: Offer, scope: ToolScope) {
     description: offer.description,
     inputSchema: jsonSchema(scoped.inputSchema),
     execute: async (input, { abortSignal }) => {
-      const result = await client.callTool({
+      const {
+        isError = false,
+        content,
+        structuredContent,
+      } = await client.callTool({
         name: offer.name,
         arguments: scoped.prepare((input ?? {}) as Record<string, unknown>),
         options: { signal: abortSignal },
       });
-      return { isError: result.isError ?? false, content: result.content };
+      return !isError && structuredContent !== undefined
+        ? { isError, structuredContent }
+        : { isError, content };
     },
   });
 }

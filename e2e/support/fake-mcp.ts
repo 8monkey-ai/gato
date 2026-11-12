@@ -7,6 +7,7 @@ type ToolSpec = {
   input: Record<string, z.ZodType>;
   result?: (args: Record<string, unknown>) => {
     text: string;
+    structured?: Record<string, unknown>;
     isError?: boolean;
   };
 };
@@ -28,6 +29,7 @@ export function startFakeMcp(
           const result = spec.result?.(args) ?? { text: `${name} done` };
           return {
             content: [{ type: "text", text: result.text }],
+            structuredContent: result.structured,
             isError: result.isError,
           };
         },
