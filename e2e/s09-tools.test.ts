@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 
 import { z } from "zod";
 
-import { startApp, waitUntil } from "./support/app.ts";
+import { readChat, startApp, waitUntil } from "./support/app.ts";
 import { respondioTools, startFakeMcp } from "./support/fake-mcp.ts";
 import { contentText, type LlmRequest } from "./support/fake-openrouter.ts";
 import { messageEvent, notify } from "./support/fake-respondio.ts";
@@ -189,4 +189,59 @@ test("§9 two tools with the same name fail the turn visibly instead of choosing
     'More than one tool is named "get_contact"',
   );
   expect(world.respondio.sent).toHaveLength(0);
+});
+
+function phoneShop(result: { isError?: boolean }) {
+  const devices = {
+    devices: [{ model: "Used iPhone 16 Pro Max 256GB", condition: "USED" }],
+  };
+  const fake = startFakeMcp({
+    find_devices: {
+      description: "Find devices.",
+      input: {},
+      result: () => ({
+        text: result.isError ? "Stock service down" : JSON.stringify(devices),
+        structured: devices,
+        ...result,
+      }),
+    },
+  });
+  stops.push(fake.stop);
+  return {
+    MCP_SERVERS: "shop",
+    MCP_SHOP_URL: fake.url,
+    MCP_SHOP_BEARER_TOKEN: fake.bearerToken,
+    MCP_SHOP_TOOLS: "find_devices",
+  };
+}
+
+async function askForDevices(env: Record<string, string>) {
+  world = await createWorld();
+  world.llm.respond(callOnce([{ name: "find_devices", args: {} }]));
+  await world.start(env);
+  world.telegram.push(42, { text: "Any iPhones?" });
+  await waitUntil(() => world.telegram.sent.length);
+  return toolResults(world.llm.mainRequests()[1]!)[0]!;
+}
+
+test("§9 structured tool results reach the agent and the record as an object", async () => {
+  const result = await askForDevices(phoneShop({}));
+
+  expect(result).toContain(
+    '"structuredContent":{"devices":[{"model":"Used iPhone 16 Pro Max 256GB","condition":"USED"}]}',
+  );
+  expect(result).not.toContain('\\"devices\\"');
+  const chat = await readChat(world.dataDir, world.telegram.connectionId, "42");
+  const record = chat.find((e) => e.tag === "tool")!.text;
+  expect(record).toContain(
+    '"structuredContent":{"devices":[{"model":"Used iPhone 16 Pro Max 256GB","condition":"USED"}]}',
+  );
+  expect(record).not.toContain('\\"devices\\"');
+});
+
+test("§9 an error tool result keeps its text even with structured content", async () => {
+  const result = await askForDevices(phoneShop({ isError: true }));
+
+  expect(result).toContain('"isError":true');
+  expect(result).toContain("Stock service down");
 });
