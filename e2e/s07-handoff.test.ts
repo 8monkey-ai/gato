@@ -46,7 +46,7 @@ test("§7 the handoff tool saves an English reason and applies the handoff and o
   await turn();
 
   expect(world.respondio.tags).toEqual([
-    { contact: "5", tags: ["handoff", "out-of-scope"] },
+    { contact: "5", tags: ["handoff", "out_of_scope"] },
   ]);
   expect(world.respondio.comments).toEqual([
     { contact: "5", text: "Handoff: Refund needs approval" },

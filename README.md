@@ -92,7 +92,7 @@ All configuration is in environment variables. Invalid values stop the startup w
 | `RESPONDIO_<NAME>_AGENT_USER_ID`        | (none)                                                       | The respond.io user of the agent.                   |
 | `RESPONDIO_<NAME>_REPLY_CHANNEL_ID`     | (none: the platform selects the route)                       | A fixed messaging channel for replies.              |
 | `RESPONDIO_<NAME>_HANDOFF_LABEL`        | `handoff`                                                    | Label for each handoff.                             |
-| `RESPONDIO_<NAME>_OUT_OF_SCOPE_LABEL`   | `out-of-scope`                                               | Label for a handoff by the agent.                   |
+| `RESPONDIO_<NAME>_OUT_OF_SCOPE_LABEL`   | `out_of_scope`                                               | Label for a handoff by the agent.                   |
 | `RESPONDIO_<NAME>_ERROR_LABEL`          | `error`                                                      | Label for a handoff after an error.                 |
 | `RESPONDIO_<NAME>_MCP_URL`              | (none: the MCP connection is off)                            | Address of the self-hosted respond.io MCP server.   |
 | `RESPONDIO_<NAME>_MCP_BEARER_TOKEN`     | (required with the URL)                                      | Static bearer token for the MCP server.             |
