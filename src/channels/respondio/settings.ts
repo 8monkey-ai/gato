@@ -33,7 +33,7 @@ export function settingsOf(env: Env, name: string) {
   };
   const labels = {
     handoff: value("HANDOFF_LABEL") ?? "handoff",
-    "out-of-scope": value("OUT_OF_SCOPE_LABEL") ?? "out-of-scope",
+    "out-of-scope": value("OUT_OF_SCOPE_LABEL") ?? "out_of_scope",
     error: value("ERROR_LABEL") ?? "error",
   };
   return {
