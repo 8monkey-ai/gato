@@ -144,8 +144,13 @@ test("§6 a send that was on its way at restart stays uncertain and is not sent 
     ["user", "Hi"],
     ["user", "Hello?"],
   ]);
-  const agent = (
-    await readChat(world.dataDir, world.telegram.connectionId, "42")
-  ).filter((e) => e.tag === "agent");
+  const agent = await waitUntil(async () => {
+    const entries = (
+      await readChat(world.dataDir, world.telegram.connectionId, "42")
+    ).filter((e) => e.tag === "agent");
+    return entries.length === 2 && entries.at(-1)!.meta.delivery !== "sending"
+      ? entries
+      : undefined;
+  });
   expect(agent.map((e) => e.meta.delivery)).toEqual(["uncertain", "sent"]);
 });
