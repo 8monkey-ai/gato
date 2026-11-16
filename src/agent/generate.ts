@@ -80,7 +80,8 @@ export async function generate(deps: AgentDeps, turn: Turn): Promise<boolean> {
 
 async function turnMessages(config: Config, prompts: Prompts, turn: Turn) {
   const { conversation, connection, budget } = turn;
-  const summary = await contactSummary(conversation, {
+  const { entries } = await conversation.read();
+  const summary = await contactSummary(conversation, entries, {
     model: turn.model(config.models.summary, "summary"),
     prompt: prompts.summary,
     timezone: config.timezone,
@@ -95,6 +96,7 @@ async function turnMessages(config: Config, prompts: Prompts, turn: Turn) {
   });
   const messages = await buildContext(
     conversation,
+    entries,
     connection,
     prepare,
     summary,

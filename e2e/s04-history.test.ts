@@ -66,25 +66,58 @@ test("§4 prepared folders are read without new work, and tool activity and note
   ]);
 });
 
-test("§4 a damaged history is reported and kept while other conversations continue", async () => {
+test("§4 startup reads no chat, and a damaged history is reported when it is read and kept while other conversations continue", async () => {
   world = await createWorld();
   const damaged = `${migrated}\n[not a header\n  lost?\n`;
   await writeChat(world.dataDir, world.telegram.connectionId, "1", damaged);
   const app = await world.start();
-  const health = (await (await fetch(`${app.url}/health`)).json()) as {
-    damagedConversations: number;
-  };
-  expect(health.damagedConversations).toBe(1);
-  const report = await app.waitForLog("record.damaged");
-  expect(report.conversations).toEqual([`${world.telegram.connectionId}/1`]);
+  const damagedCount = async () =>
+    (
+      (await (await fetch(`${app.url}/health`)).json()) as {
+        damagedConversations: number;
+      }
+    ).damagedConversations;
+  expect(await damagedCount()).toBe(0);
+  expect(app.logs.some((l) => l.event === "record.damaged")).toBe(false);
 
   world.telegram.push(1, { text: "Still there?" });
   world.telegram.push(2, { text: "Hi" });
   await waitUntil(() => world.telegram.sent.length === 2);
+  const report = await app.waitForLog("record.damaged");
+  expect(report.conversation).toBe(`${world.telegram.connectionId}/1`);
+  expect(await damagedCount()).toBe(1);
   const text = await Bun.file(
     join(world.dataDir, world.telegram.connectionId, "1", "chat.txt"),
   ).text();
   expect(text).toContain("[not a header\n  lost?");
+});
+
+test("§4 an operator edit to a chat folder applies at the next turn without a restart", async () => {
+  world = await createWorld();
+  await world.start();
+  world.telegram.push(42, { text: "First" });
+  await waitUntil(() => world.telegram.sent.length);
+  await waitUntil(async () =>
+    (await readChat(world.dataDir, world.telegram.connectionId, "42")).some(
+      (e) => e.tag === "turn",
+    ),
+  );
+  const file = join(
+    world.dataDir,
+    world.telegram.connectionId,
+    "42",
+    "chat.txt",
+  );
+  const text = await Bun.file(file).text();
+  await Bun.write(file, text.replace("  First", "  Edited by an operator"));
+
+  world.telegram.push(42, { text: "Second" });
+  await waitUntil(() => world.telegram.sent.length === 2);
+  expect(visible(world.llm.mainRequests()[1]!)).toEqual([
+    ["user", "Edited by an operator"],
+    ["assistant", "Hello from the agent."],
+    ["user", "Second"],
+  ]);
 });
 
 test("§4 storage that is not available prevents startup", async () => {
@@ -133,8 +166,8 @@ test("§6 a send that was on its way at restart stays uncertain and is not sent 
   const inFlight = `[${minutesAgo(2)}] customer {"ref":"c1"}\n  Hi\n\n[${minutesAgo(1)}] agent {"turn":"t1","delivery":"sending"}\n  Maybe arrived\n`;
   await writeChat(world.dataDir, world.telegram.connectionId, "42", inFlight);
   const app = await world.start();
-  await app.waitForLog("delivery.uncertain_after_restart");
   world.telegram.push(42, { text: "Hello?" });
+  await app.waitForLog("delivery.uncertain_after_restart");
   await waitUntil(() => world.telegram.sent.length);
 
   expect(world.telegram.sent.map((s) => s.text)).toEqual([

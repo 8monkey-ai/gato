@@ -148,6 +148,11 @@ test("§10 work that passes the shutdown bound stops and stays recorded", async 
 test("§10 each model call tells the gateway its call type and contact", async () => {
   world = await createWorld();
   world.telegram.files.set("p", new Uint8Array([1, 2, 3]));
+  // A late reply puts the one short milestone inside the nudge window that the reply opens.
+  world.llm.respond((request) => ({
+    text: "Hello from the agent.",
+    hangMs: request.metadata?.call_type === "message" ? 400 : 0,
+  }));
   await world.start({
     IMAGE_PREPARATION_MODEL: "test/vision",
     NUDGES_ENABLED: "true",

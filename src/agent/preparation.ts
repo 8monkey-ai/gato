@@ -1,7 +1,7 @@
 import { generateText, type LanguageModel } from "ai";
 
 import type { Config } from "../config.ts";
-import type { Attachment } from "../record/chat-file.ts";
+import type { Attachment, MessageEntry } from "../record/chat-file.ts";
 import type { Conversation } from "../record/store.ts";
 import type { Prompts } from "./prompts.ts";
 
@@ -26,6 +26,7 @@ export function createPreparer(deps: {
   conversation: Conversation;
 }) {
   return async (
+    entry: MessageEntry,
     attachment: Attachment,
     file: string,
   ): Promise<string | undefined> => {
@@ -55,9 +56,8 @@ export function createPreparer(deps: {
       throw new PreparationError(
         `The ${kind} preparation model returned no text`,
       );
-    await deps.conversation.lock(async (edit) => {
-      attachment.prepared = { model: modelId, text: text.trim() };
-      await edit.save();
+    await deps.conversation.updateAttachment(entry, attachment, {
+      prepared: { model: modelId, text: text.trim() },
     });
     return text.trim();
   };

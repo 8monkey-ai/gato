@@ -16,20 +16,22 @@ type State = {
   running?: Promise<void>;
 };
 
+type Queue = { stopping: boolean; states: Map<string, State> };
+
 export function createTurnQueue(runTurn: RunTurn) {
-  const states = new Map<Conversation, State>();
-  const control = { stopping: false };
+  const states = new Map<string, State>();
+  const control: Queue = { stopping: false, states };
 
   const request = (
     conversation: Conversation,
     connection: Connection,
     trigger: Trigger,
   ) => {
-    const state = states.get(conversation) ?? {};
-    states.set(conversation, state);
+    const state = states.get(conversation.id) ?? {};
     const busy = state.running || state.wanted;
     if (control.stopping || (trigger === "nudge" && busy)) return;
     if (trigger === "customer" || !state.wanted) state.wanted = trigger;
+    states.set(conversation.id, state);
     state.running ??= drain(runTurn, conversation, connection, state, control);
   };
 
@@ -46,8 +48,9 @@ export function createTurnQueue(runTurn: RunTurn) {
     request,
     stop,
     interrupt: (conversation: Conversation) =>
-      states.get(conversation)?.controller?.abort("interrupted"),
-    isBusy: (conversation: Conversation) => !!states.get(conversation)?.running,
+      states.get(conversation.id)?.controller?.abort("interrupted"),
+    isBusy: (conversation: Conversation) =>
+      !!states.get(conversation.id)?.running,
   };
 }
 
@@ -56,7 +59,7 @@ async function drain(
   conversation: Conversation,
   connection: Connection,
   state: State,
-  control: { stopping: boolean },
+  control: Queue,
 ) {
   while (state.wanted && !control.stopping) {
     const trigger = state.wanted;
@@ -75,6 +78,5 @@ async function drain(
       log.error("turn.crashed", { ...where, error });
     });
   }
-  state.running = undefined;
-  state.controller = undefined;
+  control.states.delete(conversation.id);
 }

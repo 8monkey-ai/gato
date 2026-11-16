@@ -1,66 +1,117 @@
-import { mkdir, readdir, rename, stat, unlink } from "node:fs/promises";
+import { mkdir, opendir, rename, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { log } from "../log.ts";
-import { type Entry, parseChat, serializeChat } from "./chat-file.ts";
+import {
+  type Attachment,
+  type Entry,
+  type MessageEntry,
+  parseChat,
+  serializeChat,
+} from "./chat-file.ts";
 
 export type Summary = { at: string; text: string };
 
-type Edit = {
+export type Chat = { entries: readonly Entry[]; damaged: boolean };
+
+type Edit = Chat & {
   add(entry: Entry): void;
   remove(entry: Entry): void;
   save(): Promise<void>;
 };
 
+type Shared = { locks: Map<string, Promise<unknown>>; damaged: Set<string> };
+
 const safeId = /^[A-Za-z0-9_-]{1,128}$/;
 
 export class Conversation {
-  #entries: Entry[];
-  #queue: Promise<unknown> = Promise.resolve();
-  summary: Summary | undefined;
-  readonly damaged: number;
-
   constructor(
     readonly connection: string,
     readonly contact: string,
     private readonly dir: string,
-    loaded: { entries: Entry[]; damaged: number; summary?: Summary } = {
-      entries: [],
-      damaged: 0,
-    },
-  ) {
-    this.#entries = loaded.entries;
-    this.summary = loaded.summary;
-    this.damaged = loaded.damaged;
+    private readonly shared: Shared,
+  ) {}
+
+  get id() {
+    return `${this.connection}/${this.contact}`;
   }
 
-  get entries(): readonly Entry[] {
-    return this.#entries;
-  }
-
-  lock<T>(work: (edit: Edit) => Promise<T>): Promise<T> {
-    const edit: Edit = {
-      add: (entry) => this.#insert(entry),
-      remove: (entry) => {
-        this.#entries = this.#entries.filter((e) => e !== entry);
-      },
-      save: () => this.#save(),
-    };
-    const result = this.#queue.then(() => work(edit));
-    this.#queue = result.catch(() => undefined);
+  lock<T>(work: (edit: Edit) => T | Promise<T>): Promise<T> {
+    const { locks } = this.shared;
+    const result = (locks.get(this.id) ?? Promise.resolve()).then(async () =>
+      work(await this.#open()),
+    );
+    const tail = result.catch(() => undefined);
+    locks.set(this.id, tail);
+    void tail.then(() => {
+      if (locks.get(this.id) === tail) locks.delete(this.id);
+    });
     return result;
   }
 
-  #insert(entry: Entry) {
-    let index = this.#entries.length;
-    while (index > 0 && (this.#entries[index - 1]?.at ?? "") > entry.at)
-      index--;
-    this.#entries.splice(index, 0, entry);
+  read(): Promise<Chat> {
+    return this.lock(({ entries, damaged }) => ({ entries, damaged }));
   }
 
-  async #save() {
-    await mkdir(join(this.dir, "attachments"), { recursive: true });
-    await writeAtomic(join(this.dir, "chat.txt"), serializeChat(this.#entries));
+  updateAttachment(
+    message: MessageEntry,
+    attachment: Attachment,
+    fields: Partial<Attachment>,
+  ) {
+    const index = message.attachments?.indexOf(attachment) ?? -1;
+    return this.lock(async (edit) => {
+      const stored = edit.entries.find(
+        (e) =>
+          e.kind === "message" &&
+          e.at === message.at &&
+          e.role === message.role &&
+          e.ref === message.ref,
+      );
+      const target =
+        stored?.kind === "message" ? stored.attachments?.[index] : undefined;
+      if (!target) return;
+      Object.assign(target, fields);
+      await edit.save();
+    });
+  }
+
+  async #open(): Promise<Edit> {
+    const file = Bun.file(join(this.dir, "chat.txt"));
+    const parsed = (await file.exists())
+      ? parseChat(await file.text())
+      : { entries: [], damaged: 0 };
+    this.#report(parsed.damaged);
+    const entries = parsed.entries.sort((a, b) =>
+      a.at < b.at ? -1 : a.at > b.at ? 1 : 0,
+    );
+    const save = async () => {
+      await mkdir(join(this.dir, "attachments"), { recursive: true });
+      await writeAtomic(join(this.dir, "chat.txt"), serializeChat(entries));
+    };
+    if (markInterruptedSends(entries, this.id)) await save();
+    return {
+      entries,
+      damaged: parsed.damaged > 0,
+      add: (entry) => {
+        let index = entries.length;
+        while (index > 0 && (entries[index - 1]?.at ?? "") > entry.at) index--;
+        entries.splice(index, 0, entry);
+      },
+      remove: (entry) => {
+        entries.splice(entries.indexOf(entry), 1);
+      },
+      save,
+    };
+  }
+
+  #report(damaged: number) {
+    const known = this.shared.damaged;
+    if (!damaged) {
+      known.delete(this.id);
+    } else if (!known.has(this.id)) {
+      known.add(this.id);
+      log.error("record.damaged", { conversation: this.id, entries: damaged });
+    }
   }
 
   async writeAttachment(bytes: Uint8Array, name: string): Promise<string> {
@@ -77,21 +128,24 @@ export class Conversation {
     return Bun.file(join(this.dir, file)).bytes();
   }
 
+  async readSummary(): Promise<Summary | undefined> {
+    const file = Bun.file(join(this.dir, "summary.txt"));
+    return (await file.exists()) ? parseSummary(await file.text()) : undefined;
+  }
+
   async saveSummary(summary: Summary) {
     await mkdir(this.dir, { recursive: true });
     await writeAtomic(
       join(this.dir, "summary.txt"),
       `Summarized at: ${summary.at}\n\n${summary.text}\n`,
     );
-    this.summary = summary;
   }
 }
 
 export class ConversationStore {
-  private constructor(
-    private readonly root: string,
-    private readonly conversations: Map<string, Conversation>,
-  ) {}
+  readonly #shared: Shared = { locks: new Map(), damaged: new Set() };
+
+  private constructor(private readonly root: string) {}
 
   static async open(root: string): Promise<ConversationStore> {
     if (!(await stat(root)).isDirectory())
@@ -99,18 +153,7 @@ export class ConversationStore {
     const probe = join(root, ".write-check");
     await Bun.write(probe, "ok");
     await unlink(probe);
-    const conversations = new Map<string, Conversation>();
-    for (const connection of await subdirectories(root)) {
-      for (const contact of await subdirectories(join(root, connection))) {
-        const dir = join(root, connection, contact);
-        const loaded = await loadFolder(dir);
-        conversations.set(
-          key(connection, contact),
-          new Conversation(connection, contact, dir, loaded),
-        );
-      }
-    }
-    return new ConversationStore(root, conversations);
+    return new ConversationStore(root);
   }
 
   get(connection: string, contact: string): Conversation {
@@ -119,54 +162,47 @@ export class ConversationStore {
         `Unsafe conversation identifier: ${connection}/${contact}`,
       );
     }
-    const id = key(connection, contact);
-    let conversation = this.conversations.get(id);
-    if (!conversation) {
-      conversation = new Conversation(
-        connection,
-        contact,
-        join(this.root, connection, contact),
+    return new Conversation(
+      connection,
+      contact,
+      join(this.root, connection, contact),
+      this.#shared,
+    );
+  }
+
+  get damagedCount() {
+    return this.#shared.damaged.size;
+  }
+
+  // Every write renews chat.txt, so its modification time is never earlier than the latest entry.
+  async changedSince(connection: string, time: number) {
+    const dir = join(this.root, connection);
+    const changed: Conversation[] = [];
+    for await (const item of await opendir(dir).catch(() => [])) {
+      if (!item.isDirectory() || !safeId.test(item.name)) continue;
+      const modified = await stat(join(dir, item.name, "chat.txt")).then(
+        (s) => s.mtimeMs,
+        () => 0,
       );
-      this.conversations.set(id, conversation);
+      if (modified >= time) changed.push(this.get(connection, item.name));
     }
-    return conversation;
-  }
-
-  list(): Conversation[] {
-    return [...this.conversations.values()];
+    return changed;
   }
 }
 
-const key = (connection: string, contact: string) => `${connection}/${contact}`;
-
-async function subdirectories(dir: string): Promise<string[]> {
-  const items = await readdir(dir, { withFileTypes: true });
-  return items
-    .filter((item) => item.isDirectory() && safeId.test(item.name))
-    .map((i) => i.name);
-}
-
-async function loadFolder(dir: string) {
-  const chat = Bun.file(join(dir, "chat.txt"));
-  const parsed = (await chat.exists())
-    ? parseChat(await chat.text())
-    : { entries: [], damaged: 0 };
-  parsed.entries.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
-  for (const entry of parsed.entries) {
-    // A send that was on its way when the previous process stopped may or may not have arrived.
-    if (entry.kind === "message" && entry.delivery === "sending") {
-      entry.delivery = "uncertain";
-      log.warn("delivery.uncertain_after_restart", {
-        folder: dir,
-        at: entry.at,
-      });
-    }
+// Only a stopped process or a failed write leaves "sending" on disk, because a send holds the lock.
+function markInterruptedSends(entries: Entry[], conversation: string) {
+  const interrupted = entries.filter(
+    (e): e is MessageEntry => e.kind === "message" && e.delivery === "sending",
+  );
+  for (const entry of interrupted) {
+    entry.delivery = "uncertain";
+    log.warn("delivery.uncertain_after_restart", {
+      conversation,
+      at: entry.at,
+    });
   }
-  const summaryFile = Bun.file(join(dir, "summary.txt"));
-  const summary = (await summaryFile.exists())
-    ? parseSummary(await summaryFile.text())
-    : undefined;
-  return { ...parsed, summary };
+  return interrupted.length > 0;
 }
 
 function parseSummary(content: string): Summary | undefined {

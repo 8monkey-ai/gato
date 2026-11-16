@@ -54,11 +54,6 @@ async function serve({
   connections,
   runTurn,
 }: Awaited<ReturnType<typeof prepare>>) {
-  const damaged = store
-    .list()
-    .filter((c) => c.damaged)
-    .map((c) => `${c.connection}/${c.contact}`);
-  if (damaged.length) log.error("record.damaged", { conversations: damaged });
   const service = createConversationService(store, runTurn);
   const nudges = startNudges({
     config,
@@ -70,7 +65,7 @@ async function serve({
   const server = startHttp(config.port, connections, () => ({
     ready,
     connections: connections.map((c) => c.id),
-    damagedConversations: damaged.length,
+    damagedConversations: store.damagedCount,
     nudges: config.nudges.enabled
       ? nudges.isReady()
         ? "ready"

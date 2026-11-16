@@ -1,6 +1,6 @@
 import type { Connection, IncomingMessage } from "../channels/channel.ts";
 import { log } from "../log.ts";
-import type { MessageEntry } from "../record/chat-file.ts";
+import type { Entry, MessageEntry } from "../record/chat-file.ts";
 import type { Conversation, ConversationStore } from "../record/store.ts";
 import { ensureFiles } from "./files.ts";
 import { isMessage } from "./history.ts";
@@ -15,11 +15,9 @@ export function createConversationService(
 
   const receive = async (connection: Connection, message: IncomingMessage) => {
     const conversation = store.get(connection.id, message.contact);
-    const isNew = !conversation.entries.some(
-      (e) => isMessage(e) && e.ref === message.ref,
-    );
-    if (message.role === "customer" && isNew) turns.interrupt(conversation);
-    const entry = await record(conversation, message);
+    const entry = await record(conversation, message, () => {
+      if (message.role === "customer") turns.interrupt(conversation);
+    });
     if (!entry) return;
     log.info("message.recorded", {
       connection: connection.id,
@@ -47,12 +45,16 @@ export function createConversationService(
 
 export type ConversationService = ReturnType<typeof createConversationService>;
 
-function record(conversation: Conversation, message: IncomingMessage) {
+function record(
+  conversation: Conversation,
+  message: IncomingMessage,
+  onNew: () => void,
+) {
   return conversation.lock(async (edit) => {
     const echo =
-      conversation.entries.find((e) => isMessage(e) && e.ref === message.ref) ??
+      edit.entries.find((e) => isMessage(e) && e.ref === message.ref) ??
       (message.role === "agent"
-        ? findUnconfirmed(conversation, message)
+        ? findUnconfirmed(edit.entries, message)
         : undefined);
     if (echo) {
       if (
@@ -66,6 +68,7 @@ function record(conversation: Conversation, message: IncomingMessage) {
       }
       return undefined;
     }
+    onNew();
     const entry = toEntry(message);
     edit.add(entry);
     await edit.save().catch((error: unknown) => {
@@ -91,13 +94,13 @@ function toEntry(message: IncomingMessage): MessageEntry {
   };
 }
 
-function findUnconfirmed(conversation: Conversation, message: IncomingMessage) {
-  return conversation.entries.find(
+function findUnconfirmed(entries: readonly Entry[], message: IncomingMessage) {
+  return entries.find(
     (e) =>
       isMessage(e) &&
       e.role === "agent" &&
       !e.ref &&
-      (e.delivery === "uncertain" || e.delivery === "sending") &&
+      e.delivery === "uncertain" &&
       (e.text ?? "") === (message.text ?? ""),
   );
 }

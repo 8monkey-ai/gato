@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -33,17 +33,45 @@ describe("ConversationStore", () => {
       "telegram-1",
       "42",
     );
-    expect(reopened.entries.map((e) => ("text" in e ? e.text : ""))).toEqual([
+    const { entries } = await reopened.read();
+    expect(entries.map((e) => ("text" in e ? e.text : ""))).toEqual([
       "early",
       "late",
     ]);
-    expect(reopened.summary).toEqual({
+    expect(await reopened.readSummary()).toEqual({
       at: "2026-01-01T11:00:00.000Z",
       text: "Notes",
     });
     expect(
       await Bun.file(join(root, "telegram-1/42/chat.txt")).text(),
     ).toContain("early");
+  });
+});
+
+describe("ConversationStore reads", () => {
+  test("counts a damaged chat when it is read, and forgets it when repaired", async () => {
+    const root = await temporaryRoot();
+    const file = join(root, "c/1/chat.txt");
+    await Bun.write(file, "[not a header\n");
+    const store = await ConversationStore.open(root);
+    expect(store.damagedCount).toBe(0);
+    expect((await store.get("c", "1").read()).damaged).toBe(true);
+    expect(store.damagedCount).toBe(1);
+
+    await Bun.write(file, "");
+    await store.get("c", "1").read();
+    expect(store.damagedCount).toBe(0);
+  });
+
+  test("lists only chats that changed since a time", async () => {
+    const root = await temporaryRoot();
+    await Bun.write(join(root, "c/old/chat.txt"), "");
+    await Bun.write(join(root, "c/new/chat.txt"), "");
+    await utimes(join(root, "c/old/chat.txt"), 1, 1);
+    const store = await ConversationStore.open(root);
+    const changed = await store.changedSince("c", Date.now() - 60_000);
+    expect(changed.map((c) => c.contact)).toEqual(["new"]);
+    expect(await store.changedSince("missing", 0)).toEqual([]);
   });
 });
 

@@ -1,4 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
+import { utimes } from "node:fs/promises";
+import { join } from "node:path";
 
 import { minutesAgo, readChat, waitUntil, writeChat } from "./support/app.ts";
 import { lastUserText, type LlmRequest } from "./support/fake-openrouter.ts";
@@ -25,12 +27,14 @@ async function startWith(
   chats: Record<string, string>,
   env: Record<string, string> = {},
   channels: "telegram" | "respondio" = "telegram",
+  prepareData = (_folder: string) => Promise.resolve(),
 ) {
   world = await createWorld();
   const connection =
     channels === "telegram" ? world.telegram.connectionId : "respondio-main";
   for (const [contact, text] of Object.entries(chats))
     await writeChat(world.dataDir, connection, contact, text);
+  await prepareData(join(world.dataDir, connection));
   world.llm.respond((request) =>
     isNudge(request) ? { text: "Still interested?" } : { text: "Hi." },
   );
@@ -71,8 +75,11 @@ test("§8 the nudge prompt is a private user-side trigger that is never recorded
 
 test("§8 configured milestones are measured from the latest real customer message", async () => {
   world = await createWorld();
+  // A late reply puts the one short milestone inside the nudge window that the reply opens.
   world.llm.respond((request) =>
-    isNudge(request) ? { text: "Anything else?" } : { text: "Hello." },
+    isNudge(request)
+      ? { text: "Anything else?" }
+      : { text: "Hello.", hangMs: 600 },
   );
   await world.start({ ...fast, NUDGES_MILESTONES_MINUTES: "0.02" });
   world.telegram.push(42, { text: "Hi" });
@@ -122,6 +129,44 @@ test("§8 no nudges outside permitted hours or when switched off", async () => {
   await startWith({ "35": stalled(36, 30) }, { NUDGES_ENABLED: "false" });
   await Bun.sleep(600);
   expect(world.llm.requests).toHaveLength(0);
+});
+
+test("§8 a chat whose latest activity is older than the longest milestone gets no nudge, and an untouched one is not read", async () => {
+  const old = new Date(Date.now() - 799 * 60_000);
+  const app = await startWith(
+    {
+      "1": stalled(800, 799),
+      "2": `${stalled(800, 799)}\n[not a header\n`,
+      "3": stalled(36, 30),
+    },
+    {},
+    "telegram",
+    (folder) => utimes(join(folder, "2", "chat.txt"), old, old),
+  );
+  await waitUntil(() => world.telegram.sent.length, 3000);
+  await Bun.sleep(400);
+
+  expect(world.telegram.sent.map((s) => s.chat_id)).toEqual(["3"]);
+  expect(app.logs.map((l) => l.event)).not.toContain("record.damaged");
+});
+
+test("§8 a chat that cannot be read does not stop the nudges of other chats", async () => {
+  // The read must write the interrupted send back, and a file in place of the attachments folder makes that write fail.
+  const interrupted = `${stalled(36, 30)}\n[${minutesAgo(29)}] agent {"delivery":"sending"}\n  Hello?\n`;
+  const app = await startWith(
+    { "1": interrupted, "2": stalled(36, 30) },
+    {},
+    "telegram",
+    async (folder) => {
+      await Bun.write(join(folder, "1", "attachments"), "");
+    },
+  );
+  await waitUntil(() => world.telegram.sent.length, 3000);
+  await app.waitForLog("nudge.failed", (l) => l.contact === "1");
+  await Bun.sleep(400);
+
+  expect(world.telegram.sent.map((s) => s.chat_id)).toEqual(["2"]);
+  expect(app.logs.map((l) => l.event)).not.toContain("nudges.stopped");
 });
 
 test("§8 a restart does not repeat a committed attempt", async () => {

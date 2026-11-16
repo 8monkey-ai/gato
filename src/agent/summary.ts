@@ -43,6 +43,7 @@ export function needsSummary(
 
 export async function contactSummary(
   conversation: Conversation,
+  entries: readonly Entry[],
   deps: {
     model: LanguageModel;
     prompt: string;
@@ -51,8 +52,8 @@ export async function contactSummary(
   },
 ): Promise<string | undefined> {
   const now = new Date();
-  const saved = conversation.summary;
-  const source = summarySource(conversation.entries, now);
+  const saved = await conversation.readSummary();
+  const source = summarySource(entries, now);
   if (!needsSummary(saved, source, now)) return saved?.text;
   try {
     const { text } = await generateText({

@@ -73,6 +73,11 @@ test("§5 a mounted prompts folder replaces the built-in prompts", async () => {
     `[${minutesAgo(fiveDays)}] customer {"ref":"a"}\n  Hello\n\n[${minutesAgo(fiveDays - 1)}] agent {"delivery":"sent"}\n  Hi.\n`,
   );
   world.telegram.files.set("p", new Uint8Array([1, 2, 3]));
+  // A late reply puts the one short milestone inside the nudge window that the reply opens.
+  world.llm.respond((request) => ({
+    text: "Hello from the agent.",
+    hangMs: request.metadata?.call_type === "message" ? 400 : 0,
+  }));
   await world.start({
     PROMPTS_DIR: await writePrompts(),
     IMAGE_PREPARATION_MODEL: "test/vision",
