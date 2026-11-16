@@ -2,7 +2,13 @@ import { afterEach, expect, test } from "bun:test";
 import { utimes } from "node:fs/promises";
 import { join } from "node:path";
 
-import { minutesAgo, readChat, waitUntil, writeChat } from "./support/app.ts";
+import {
+  minutesAgo,
+  readChat,
+  stalled,
+  waitUntil,
+  writeChat,
+} from "./support/app.ts";
 import { lastUserText, type LlmRequest } from "./support/fake-openrouter.ts";
 import { createWorld, type World } from "./support/world.ts";
 
@@ -12,15 +18,6 @@ afterEach(async () => world.close());
 const fast = { NUDGES_ENABLED: "true", NUDGES_CHECK_INTERVAL_SECONDS: "0.2" };
 const isNudge = (request: LlmRequest) =>
   lastUserText(request).startsWith("(Automatic follow-up");
-const stalled = (
-  customerMinutesAgo: number,
-  agentMinutesAgo: number,
-) => `[${minutesAgo(customerMinutesAgo)}] customer {"ref":"c1"}
-  Can I order beans?
-
-[${minutesAgo(agentMinutesAgo)}] agent {"delivery":"sent"}
-  Which beans do you like?
-`;
 const nudgeRequests = () => world.llm.requests.filter(isNudge);
 
 async function startWith(
