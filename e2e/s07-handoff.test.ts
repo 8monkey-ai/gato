@@ -94,12 +94,12 @@ test("§7 on a channel without handoff the error is saved and logged", async () 
   world.telegram.push(42, { text: "Hi" });
 
   await app.waitForLog("turn.ended", (l) => l.outcome === "failed");
-  const entries = await readChat(
-    world.dataDir,
-    world.telegram.connectionId,
-    "42",
+  const turn = await waitUntil(async () =>
+    (await readChat(world.dataDir, world.telegram.connectionId, "42")).find(
+      (e) => e.tag === "turn",
+    ),
   );
-  expect(entries.find((e) => e.tag === "turn")?.text).toBeTruthy();
+  expect(turn.text).toBeTruthy();
   expect(world.telegram.sent).toHaveLength(0);
 });
 
