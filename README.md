@@ -125,7 +125,11 @@ Each conversation has the folder `<CONVERSATIONS_DIR>/<connection>/<contact>/`, 
 - `attachments/` has the original files.
 - `summary.txt` has `Summarized at: <time>`, an empty line, and the summary.
 
-Migration tools write folders in this format. The harness reads them at startup and does not treat their messages as new requests. The harness keeps lines that it cannot read unchanged. `/health` gives the number of damaged conversations, and the log names them.
+Edit a chat folder only while no work on that chat is in progress. The next operation on that chat uses the edit without a restart.
+
+To import history, create chat folders in this format. Imported messages do not start replies, but imported chats can receive nudges.
+
+The harness keeps lines that it cannot read unchanged. The log event `record.damaged` names chats with unreadable entries.
 
 ## Skills checkout
 
@@ -133,7 +137,7 @@ Migration tools write folders in this format. The harness reads them at startup 
 
 ## Operations
 
-- `GET /health` returns `200` when the harness is ready, with the connections, the number of damaged conversations, and the nudge state (`reconciling`, `ready`, or `disabled`).
+- `GET /health` returns `200` when the harness is ready. The response lists the connections, the damaged conversation count, and the nudge state (`reconciling`, `ready`, or `disabled`). The count includes only conversations found damaged on their latest read since startup.
 - Each model call sends the request field `metadata` with `call_type` (`message`, `nudge`, `summary`, or `preparation`) and `contact_id`, so that the gateway can show them for observability.
 - Logs are JSON lines on standard output. They contain identifiers of connections, contacts, messages, and turns, but no message text. Configured secrets are replaced with `[secret]`.
 - On `SIGTERM`, the harness stops new work. respond.io notifications get `503`, so that respond.io sends them again later. Running turns can finish until `SHUTDOWN_TIMEOUT_SECONDS`. Then they stop, and the record keeps what was sent.
@@ -155,5 +159,7 @@ Migration tools write folders in this format. The harness reads them at startup 
 - Tools keep the names that their MCP servers give them. If two tools have the same name, the turn fails with an error that names the tool, so that the agent never uses the wrong one.
 - Model gateways refuse a request that ends with an assistant message. When the visible history ends with messages from the agent or the team, for example because a customer message arrived late, the turn adds the private user-side note from the `continue.txt` prompt after them. The history keeps its order, and the note is not recorded as a customer message.
 - A deliberate skip is a reply with no text. The turn outcome is `skipped` with an explanation.
-- After a restart, the harness does not run turns that stopped before they ended. A send that was on its way becomes `uncertain`. The nudge policy continues the conversation if the customer does not write again.
+- After a restart, the harness does not resume unfinished turns. When it next reads a chat, it changes any `sending` entries to `uncertain`.
 - Nudges make at most one attempt for each conversation in each check, and agent messages and agent notes, including the "Nudge" note, are the agent activity. These rules are fixed.
+- A nudge check skips a chat when its `chat.txt` has not changed within the longest milestone. Tools that write chat folders, for example an importer, must set the modification time of `chat.txt` to the time of its latest entry. Otherwise, nudge checks read each of these chats until the longest milestone has passed.
+- A chat is not due for a nudge when its latest customer or agent activity is older than the longest milestone (12 hours 45 minutes by default). The harness can miss a nudge if the chat passes this limit between checks.

@@ -5,8 +5,8 @@ import type { Config } from "../config.ts";
 import { agentActivity, latestCustomerAt } from "../conversation/history.ts";
 import type { ConversationService } from "../conversation/service.ts";
 import { log } from "../log.ts";
-import type { Conversation, ConversationStore } from "../record/store.ts";
-import { dueMilestone, withinHours } from "./policy.ts";
+import type { Chat, Conversation, ConversationStore } from "../record/store.ts";
+import { dueMilestone, windowStart, withinHours } from "./policy.ts";
 
 type Deps = {
   config: Config;
@@ -48,44 +48,47 @@ export function startNudges(deps: Deps) {
   };
 }
 
-function isDue(conversation: Conversation, config: Config, now = Date.now()) {
-  const customerAt = latestCustomerAt(conversation.entries);
-  if (customerAt === undefined || conversation.damaged) return false;
+function isDue({ entries, damaged }: Chat, config: Config) {
+  const customerAt = latestCustomerAt(entries);
+  if (customerAt === undefined || damaged) return false;
   return (
     dueMilestone(
       customerAt,
-      agentActivity(conversation.entries),
+      agentActivity(entries),
       config.nudges.milestonesMs,
-      now,
+      Date.now(),
     ) !== undefined
   );
 }
 
 async function check(deps: Deps) {
-  const { hours } = deps.config.nudges;
+  const { hours, milestonesMs } = deps.config.nudges;
   if (hours && !withinHours(new Date(), hours, deps.config.timezone)) return;
-  const due = deps.store
-    .list()
-    .filter((c) => deps.connections.has(c.connection) && isDue(c, deps.config));
-  for (const conversation of due) await attempt(deps, conversation);
+  const since = windowStart(milestonesMs, Date.now());
+  for (const connection of deps.connections.values()) {
+    for (const conversation of await deps.store.changedSince(
+      connection.id,
+      since,
+    ))
+      await attempt(deps, connection, conversation);
+  }
 }
 
-async function attempt(deps: Deps, conversation: Conversation) {
-  const connection = deps.connections.get(
-    conversation.connection,
-  ) as Connection;
+async function attempt(
+  deps: Deps,
+  connection: Connection,
+  conversation: Conversation,
+) {
   const where = { connection: connection.id, contact: conversation.contact };
   try {
     if (
+      !isDue(await conversation.read(), deps.config) ||
       deps.service.isBusy(conversation) ||
       !(await connection.isAgentOwned(conversation.contact))
     )
       return;
     const noted = await conversation.lock(async (edit) => {
-      if (
-        !isDue(conversation, deps.config) ||
-        deps.service.isBusy(conversation)
-      )
+      if (!isDue(edit, deps.config) || deps.service.isBusy(conversation))
         return false;
       edit.add({
         kind: "note",

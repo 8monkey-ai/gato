@@ -8,6 +8,7 @@ import {
   type App,
   minutesAgo,
   readChat,
+  stalled,
   startApp,
   tempDir,
   waitUntil,
@@ -72,13 +73,18 @@ test("§5 a mounted prompts folder replaces the built-in prompts", async () => {
     "42",
     `[${minutesAgo(fiveDays)}] customer {"ref":"a"}\n  Hello\n\n[${minutesAgo(fiveDays - 1)}] agent {"delivery":"sent"}\n  Hi.\n`,
   );
+  await writeChat(
+    world.dataDir,
+    world.telegram.connectionId,
+    "43",
+    stalled(36, 30),
+  );
   world.telegram.files.set("p", new Uint8Array([1, 2, 3]));
   await world.start({
     PROMPTS_DIR: await writePrompts(),
     IMAGE_PREPARATION_MODEL: "test/vision",
     NUDGES_ENABLED: "true",
     NUDGES_CHECK_INTERVAL_SECONDS: "0.2",
-    NUDGES_MILESTONES_MINUTES: "0.02",
   });
   world.telegram.push(42, {
     photo: [{ file_id: "p", file_unique_id: "p", width: 1, height: 1 }],

@@ -166,3 +166,14 @@ export async function writeChat(
 
 export const minutesAgo = (minutes: number) =>
   new Date(Date.now() - minutes * 60_000).toISOString();
+
+// A chat where the customer waits for an answer to the agent's question.
+export const stalled = (
+  customerMinutesAgo: number,
+  agentMinutesAgo: number,
+) => `[${minutesAgo(customerMinutesAgo)}] customer {"ref":"c1"}
+  Can I order beans?
+
+[${minutesAgo(agentMinutesAgo)}] agent {"delivery":"sent"}
+  Which beans do you like?
+`;

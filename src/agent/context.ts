@@ -3,7 +3,7 @@ import type { FilePart, ModelMessage, TextPart } from "ai";
 import type { Connection } from "../channels/channel.ts";
 import { ensureFiles } from "../conversation/files.ts";
 import { isVisible } from "../conversation/history.ts";
-import type { Attachment, MessageEntry } from "../record/chat-file.ts";
+import type { Attachment, Entry, MessageEntry } from "../record/chat-file.ts";
 import type { Conversation } from "../record/store.ts";
 import {
   defaultMediaTypes,
@@ -28,6 +28,7 @@ const attribution: Record<MessageEntry["role"], string> = {
 
 export async function buildContext(
   conversation: Conversation,
+  entries: readonly Entry[],
   connection: Connection,
   prepare: Preparer,
   summary: string | undefined,
@@ -40,7 +41,7 @@ export async function buildContext(
         },
       ]
     : [];
-  for (const entry of conversation.entries.filter(isVisible)) {
+  for (const entry of entries.filter(isVisible)) {
     if (entry.role !== "agent")
       await ensureFiles(conversation, connection, entry);
     const parts = await messageParts(conversation, entry, prepare);
@@ -64,7 +65,7 @@ async function messageParts(
             type: "text",
             text: `[${attachment.kind} sent: ${attachment.source}]`,
           }
-        : await attachmentPart(conversation, attachment, prepare),
+        : await attachmentPart(conversation, entry, attachment, prepare),
     );
   }
   return parts;
@@ -72,6 +73,7 @@ async function messageParts(
 
 async function attachmentPart(
   conversation: Conversation,
+  entry: MessageEntry,
   attachment: Attachment,
   prepare: Preparer,
 ): Promise<Part> {
@@ -88,7 +90,7 @@ async function attachmentPart(
       type: "text",
       text: `[${label}: the file could not be retrieved]`,
     };
-  const prepared = await prepare(attachment, attachment.file);
+  const prepared = await prepare(entry, attachment, attachment.file);
   if (prepared !== undefined) {
     return {
       type: "text",

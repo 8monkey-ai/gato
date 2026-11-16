@@ -1,6 +1,12 @@
 import { afterEach, expect, test } from "bun:test";
 
-import { readChat, startApp, waitUntil } from "./support/app.ts";
+import {
+  readChat,
+  stalled,
+  startApp,
+  waitUntil,
+  writeChat,
+} from "./support/app.ts";
 import { systemText } from "./support/fake-openrouter.ts";
 import { messageEvent, notify } from "./support/fake-respondio.ts";
 import { createWorld, type World } from "./support/world.ts";
@@ -147,21 +153,27 @@ test("§10 work that passes the shutdown bound stops and stays recorded", async 
 
 test("§10 each model call tells the gateway its call type and contact", async () => {
   world = await createWorld();
+  await writeChat(
+    world.dataDir,
+    world.telegram.connectionId,
+    "43",
+    stalled(36, 30),
+  );
   world.telegram.files.set("p", new Uint8Array([1, 2, 3]));
   await world.start({
     IMAGE_PREPARATION_MODEL: "test/vision",
     NUDGES_ENABLED: "true",
     NUDGES_CHECK_INTERVAL_SECONDS: "0.2",
-    NUDGES_MILESTONES_MINUTES: "0.02",
   });
+  await waitUntil(() => world.telegram.sent.length === 1, 3000);
   world.telegram.push(42, {
     photo: [{ file_id: "p", file_unique_id: "p", width: 1, height: 1 }],
   });
   await waitUntil(() => world.telegram.sent.length === 2, 4000);
 
   expect(world.llm.requests.map((r) => r.metadata)).toEqual([
+    { call_type: "nudge", contact_id: "43" },
     { call_type: "preparation", contact_id: "42" },
     { call_type: "message", contact_id: "42" },
-    { call_type: "nudge", contact_id: "42" },
   ]);
 });

@@ -1,11 +1,17 @@
 export type Hours = { from: number; to: number };
 
+// A chat whose latest activity is earlier than this time cannot be due a nudge.
+export const windowStart = (milestonesMs: readonly number[], now: number) =>
+  now - Math.max(...milestonesMs);
+
 export function dueMilestone(
   customerAt: number,
   activity: readonly number[],
   milestonesMs: readonly number[],
   now: number,
 ): number | undefined {
+  const latest = Math.max(customerAt, ...activity);
+  if (latest < windowStart(milestonesMs, now)) return undefined;
   const due = milestonesMs
     .map((offset) => customerAt + offset)
     .filter((at) => at <= now && !activity.some((active) => active >= at));

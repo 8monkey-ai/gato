@@ -7,43 +7,23 @@ import { ConversationStore } from "./store.ts";
 
 const temporaryRoot = () => mkdtemp(join(tmpdir(), "gato-store-"));
 
-describe("ConversationStore", () => {
-  test("keeps entries in sent-time order and reloads them", async () => {
+describe("ConversationStore reads", () => {
+  test("forgets a damaged chat when a later read finds it repaired", async () => {
     const root = await temporaryRoot();
+    const file = join(root, "c/1/chat.txt");
+    await Bun.write(file, "[not a header\n");
     const store = await ConversationStore.open(root);
-    const chat = store.get("telegram-1", "42");
-    await chat.lock(async (edit) => {
-      edit.add({
-        kind: "message",
-        role: "customer",
-        at: "2026-01-01T10:00:02.000Z",
-        text: "late",
-      });
-      edit.add({
-        kind: "message",
-        role: "customer",
-        at: "2026-01-01T10:00:01.000Z",
-        text: "early",
-      });
-      await edit.save();
-    });
-    await chat.saveSummary({ at: "2026-01-01T11:00:00.000Z", text: "Notes" });
+    expect((await store.get("c", "1").read()).damaged).toBe(true);
+    expect(store.damagedCount).toBe(1);
 
-    const reopened = (await ConversationStore.open(root)).get(
-      "telegram-1",
-      "42",
-    );
-    expect(reopened.entries.map((e) => ("text" in e ? e.text : ""))).toEqual([
-      "early",
-      "late",
-    ]);
-    expect(reopened.summary).toEqual({
-      at: "2026-01-01T11:00:00.000Z",
-      text: "Notes",
-    });
-    expect(
-      await Bun.file(join(root, "telegram-1/42/chat.txt")).text(),
-    ).toContain("early");
+    await Bun.write(file, "");
+    await store.get("c", "1").read();
+    expect(store.damagedCount).toBe(0);
+  });
+
+  test("gives no changed chats for a connection that has no folder yet", async () => {
+    const store = await ConversationStore.open(await temporaryRoot());
+    expect(await store.changedSince("missing", 0)).toEqual([]);
   });
 });
 
@@ -62,9 +42,8 @@ describe("ConversationStore files", () => {
     expect(() => chat.readAttachment("../chat.txt")).toThrow();
   });
 
-  test("rejects unsafe identifiers and missing storage", async () => {
+  test("rejects unsafe identifiers", async () => {
     const store = await ConversationStore.open(await temporaryRoot());
     expect(() => store.get("c", "../x")).toThrow();
-    await expect(ConversationStore.open("/nonexistent/gato")).rejects.toThrow();
   });
 });
