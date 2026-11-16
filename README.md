@@ -125,7 +125,11 @@ Each conversation has the folder `<CONVERSATIONS_DIR>/<connection>/<contact>/`, 
 - `attachments/` has the original files.
 - `summary.txt` has `Summarized at: <time>`, an empty line, and the summary.
 
-The chat folders are the only copy of the record. The harness reads a folder when work on that chat needs it, and writes each change back at once. Startup reads no folder. You can edit a folder while no work on that chat runs; the next operation on that chat uses the edit. Migration tools write folders in this format, and the harness does not treat their messages as new requests. The harness keeps lines that it cannot read unchanged. When it reads a damaged chat, the log event `record.damaged` names the chat, and `/health` counts it until a read finds it repaired.
+The chat folders are the only copy of the record. The harness reads the chat folder for each operation on that chat. It writes each change back before work continues. It does not read chat folders at startup. Edit a chat folder only while no work on that chat is in progress. The next operation on that chat uses the edit.
+
+External migration tools must write chat folders in this format. The harness does not treat migrated messages as new requests. Migrated chats can receive nudges under the nudge policy.
+
+The harness keeps lines that it cannot read unchanged. When it reads a damaged chat, the log event `record.damaged` names the chat, and `/health` counts it until a later read finds it repaired.
 
 ## Skills checkout
 
@@ -133,7 +137,7 @@ The chat folders are the only copy of the record. The harness reads a folder whe
 
 ## Operations
 
-- `GET /health` returns `200` when the harness is ready, with the connections, the number of damaged conversations that the harness read since it started, and the nudge state (`reconciling`, `ready`, or `disabled`).
+- `GET /health` returns `200` when the harness is ready. The response lists the connections, the damaged conversation count, and the nudge state (`reconciling`, `ready`, or `disabled`). The count includes only conversations found damaged on their latest read since startup. It excludes conversations not yet read.
 - Each model call sends the request field `metadata` with `call_type` (`message`, `nudge`, `summary`, or `preparation`) and `contact_id`, so that the gateway can show them for observability.
 - Logs are JSON lines on standard output. They contain identifiers of connections, contacts, messages, and turns, but no message text. Configured secrets are replaced with `[secret]`.
 - On `SIGTERM`, the harness stops new work. respond.io notifications get `503`, so that respond.io sends them again later. Running turns can finish until `SHUTDOWN_TIMEOUT_SECONDS`. Then they stop, and the record keeps what was sent.
@@ -155,7 +159,7 @@ The chat folders are the only copy of the record. The harness reads a folder whe
 - Tools keep the names that their MCP servers give them. If two tools have the same name, the turn fails with an error that names the tool, so that the agent never uses the wrong one.
 - Model gateways refuse a request that ends with an assistant message. When the visible history ends with messages from the agent or the team, for example because a customer message arrived late, the turn adds the private user-side note from the `continue.txt` prompt after them. The history keeps its order, and the note is not recorded as a customer message.
 - A deliberate skip is a reply with no text. The turn outcome is `skipped` with an explanation.
-- After a restart, the harness does not run turns that stopped before they ended. A send that was on its way becomes `uncertain`. The nudge policy continues the conversation if the customer does not write again.
+- After a restart, the harness does not resume unfinished turns. When it next reads a chat, it changes any `sending` entries to `uncertain`. If the customer does not write again, the harness can send a nudge only while the chat meets the nudge rules.
 - Nudges make at most one attempt for each conversation in each check, and agent messages and agent notes, including the "Nudge" note, are the agent activity. These rules are fixed.
-- A nudge check reads only the chats whose `chat.txt` changed within the longest milestone. Each write renews the file, so its modification time is never earlier than the latest activity. A copy of the data folder that does not keep the modification times makes the checks read each copied chat until the longest milestone has passed.
-- A chat is not due when its latest activity is older than the longest milestone. Because checks run only every `NUDGES_CHECK_INTERVAL_SECONDS`, the last milestone can be missed when it falls less than one interval before that limit. Example: one milestone of 60 minutes, and an agent reply 1 minute after the customer message. With the default milestones this does not occur.
+- A nudge check uses the modification time of `chat.txt` to select chats to read. It skips files whose modification time is older than the longest nudge milestone. Each harness write updates this time. Keep file modification times when you copy the data folder. If the copy sets them to the copy time, checks read every copied chat until the longest milestone has passed since the copy. Later writes can extend this period.
+- A chat is not due for a nudge when its latest customer or agent activity is older than the longest milestone. The harness waits `NUDGES_CHECK_INTERVAL_SECONDS` between checks. It can miss the last milestone if the chat passes the activity limit before the next check. For example, set one milestone at 60 minutes. The customer writes at minute 0. The agent replies at minute 1. The nudge is due from minute 60 through minute 61. Checks at minutes 59 and 64 miss it. This timing problem does not occur with the default milestones and five-minute checks. Longer intervals or gaps in checks can still cause missed nudges.
