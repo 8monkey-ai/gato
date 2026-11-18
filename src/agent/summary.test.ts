@@ -43,7 +43,7 @@ const entries: Entry[] = [
 
 describe("contact summaries", () => {
   test("use dated customer, operator, and delivered agent content of the last month", () => {
-    const source = summarySource(entries, now);
+    const source = summarySource(entries, now, "UTC");
     expect(transcript(source, "Asia/Manila")).toBe(
       [
         "[2026-03-26 20:00] Customer: I need a loan",
@@ -54,7 +54,7 @@ describe("contact summaries", () => {
   });
 
   test("follow the three-day rules", () => {
-    const source = summarySource(entries, now);
+    const source = summarySource(entries, now, "UTC");
     expect(needsSummary(undefined, source, now)).toBe(true);
     expect(needsSummary(undefined, source.slice(2), now)).toBe(true);
     expect(needsSummary(undefined, [], now)).toBe(false);
@@ -64,7 +64,26 @@ describe("contact summaries", () => {
     const recent = summarySource(
       [{ kind: "message", role: "customer", at: daysAgo(2) }],
       now,
+      "UTC",
     );
     expect(needsSummary(undefined, recent, now)).toBe(false);
+  });
+
+  test("take the latest calendar month in the configured timezone", () => {
+    const at = (iso: string): Entry => ({
+      kind: "message",
+      role: "customer",
+      at: iso,
+      text: iso,
+    });
+    const history = [
+      at("2026-02-27T19:59:00.000Z"),
+      at("2026-02-28T00:00:00.000Z"),
+    ];
+    const kualaLumpur = new Date("2026-03-30T20:00:00.000Z");
+    expect(
+      summarySource(history, kualaLumpur, "Asia/Kuala_Lumpur").map((e) => e.at),
+    ).toEqual(["2026-02-28T00:00:00.000Z"]);
+    expect(summarySource(history, kualaLumpur, "UTC")).toEqual([]);
   });
 });

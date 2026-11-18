@@ -1,6 +1,6 @@
 import { generateText, type LanguageModel } from "ai";
 
-import { isVisible } from "../conversation/history.ts";
+import { isVisible, recentMonthStart } from "../conversation/history.ts";
 import { log } from "../log.ts";
 import type { Entry, MessageEntry } from "../record/chat-file.ts";
 import type { Conversation } from "../record/store.ts";
@@ -17,14 +17,14 @@ const speaker: Record<MessageEntry["role"], string | undefined> = {
 export function summarySource(
   entries: readonly Entry[],
   now: Date,
+  timeZone: string,
 ): MessageEntry[] {
-  const monthAgo = new Date(now);
-  monthAgo.setUTCMonth(monthAgo.getUTCMonth() - 1);
+  const start = recentMonthStart(now, timeZone);
   return entries.filter(
     (e): e is MessageEntry =>
       isVisible(e) &&
       speaker[e.role] !== undefined &&
-      Date.parse(e.at) >= monthAgo.getTime(),
+      Date.parse(e.at) >= start,
   );
 }
 
@@ -53,7 +53,7 @@ export async function contactSummary(
 ): Promise<string | undefined> {
   const now = new Date();
   const saved = await conversation.readSummary();
-  const source = summarySource(entries, now);
+  const source = summarySource(entries, now, deps.timezone);
   if (!needsSummary(saved, source, now)) return saved?.text;
   try {
     const { text } = await generateText({
