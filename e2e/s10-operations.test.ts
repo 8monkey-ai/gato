@@ -32,7 +32,7 @@ test("§10 readiness is visible with connections and nudge state", async () => {
   });
 });
 
-test("§10 a deployment without any channel, an unreachable gateway, or an unknown timezone does not start", async () => {
+test("§10 a deployment without any channel, an unreachable gateway, an unknown timezone, or an invalid recent-history setting does not start", async () => {
   world = await createWorld();
   const cases = [
     [{}, "No channel is enabled"],
@@ -44,6 +44,10 @@ test("§10 a deployment without any channel, an unreachable gateway, or an unkno
       "127.0.0.1:9",
     ],
     [{ ...world.telegramEnv, AGENT_TIMEZONE: "Mars/Base" }, "AGENT_TIMEZONE"],
+    [
+      { ...world.telegramEnv, AGENT_RECENT_HISTORY: "sometimes" },
+      "AGENT_RECENT_HISTORY",
+    ],
   ] as const;
   for (const [env, error] of cases) {
     const app = await startApp({ ...world.baseEnv, ...env });

@@ -8,6 +8,7 @@ import {
 
 import type { Connection } from "../channels/channel.ts";
 import type { Config } from "../config.ts";
+import { latestMonth } from "../conversation/history.ts";
 import type { createDelivery } from "../delivery/deliver.ts";
 import { createPartSplitter } from "../delivery/parts.ts";
 import { log, redact, reportProblems } from "../log.ts";
@@ -96,7 +97,9 @@ async function turnMessages(config: Config, prompts: Prompts, turn: Turn) {
   });
   const messages = await buildContext(
     conversation,
-    entries,
+    config.recentHistoryOnly
+      ? latestMonth(entries, new Date(), config.timezone)
+      : entries,
     connection,
     prepare,
     summary,
