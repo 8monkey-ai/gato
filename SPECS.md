@@ -109,7 +109,7 @@ Migrating existing data is a separate concern. The harness defines the chat-fold
 
 ### What the agent sees
 
-Model context uses the continuing chat's eligible messages in chronological order. An optional recent-history setting limits these messages to the latest one calendar month. The latest dated contact summary from summary.txt provides private context when available. Limiting the model's context never truncates chat.txt or deletes attachments.
+Model context uses the continuing chat's eligible messages in chronological order. By default, a recent-history setting limits these messages to the latest one calendar month. An operator can switch this limit off. The latest dated contact summary from summary.txt provides private context when available. Limiting the model's context never truncates chat.txt or deletes attachments.
 
 Customer, operator, and workflow contributions retain their attribution. Internal operating notes and undelivered failed or superseded output stay out of ordinary conversational context but remain available for investigation. Delivered messages remain part of the conversation even if their turn later failed or was interrupted; unsent drafts must never be presented as delivered.
 

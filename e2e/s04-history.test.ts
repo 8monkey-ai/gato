@@ -154,15 +154,15 @@ async function startWithOldHistory(env: Record<string, string> = {}) {
   return folder;
 }
 
-test("§4 without the recent-history setting, the model sees messages older than one month", async () => {
-  await startWithOldHistory();
+test("§4 with the recent-history setting switched off, the model sees messages older than one month", async () => {
+  await startWithOldHistory({ AGENT_RECENT_HISTORY: "false" });
   expect(visible(world.llm.mainRequests()[0]!).map(([, text]) => text)).toEqual(
     ["Old question <image_url>", "Old answer", "Recent question", "Hi"],
   );
 });
 
-test("§4 the recent-history setting limits the model to the latest month and keeps chat.txt and attachments", async () => {
-  const folder = await startWithOldHistory({ AGENT_RECENT_HISTORY: "true" });
+test("§4 by default, the model sees only the latest month, and chat.txt and attachments stay complete", async () => {
+  const folder = await startWithOldHistory();
   expect(visible(world.llm.mainRequests()[0]!)).toEqual([
     ["user", "Recent question"],
     ["user", "Hi"],

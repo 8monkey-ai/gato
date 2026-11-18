@@ -26,7 +26,7 @@ const schema = z.object({
         error: "Use an IANA timezone name such as Asia/Kuala_Lumpur",
       },
     ),
-  AGENT_RECENT_HISTORY: z.stringbool().default(false),
+  AGENT_RECENT_HISTORY: z.stringbool().default(true),
   OPENROUTER_API_KEY: z.string().min(1),
   OPENROUTER_BASE_URL: z.url().default("https://openrouter.ai/api/v1"),
   AGENT_MODEL: z.string().min(1),
