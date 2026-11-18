@@ -32,7 +32,13 @@ export function agentActivity(entries: readonly Entry[]): number[] {
     .map((e) => Date.parse(e.at));
 }
 
-export const recentMonthStart = (now: Date, timeZone: string) =>
-  Temporal.Instant.fromEpochMilliseconds(now.getTime())
+export function latestMonth<T extends Entry>(
+  entries: readonly T[],
+  now: Date,
+  timeZone: string,
+) {
+  const start = Temporal.Instant.fromEpochMilliseconds(now.getTime())
     .toZonedDateTimeISO(timeZone)
     .subtract({ months: 1 }).epochMilliseconds;
+  return entries.filter((entry) => Date.parse(entry.at) >= start);
+}

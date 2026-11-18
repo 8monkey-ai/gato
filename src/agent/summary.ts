@@ -1,6 +1,6 @@
 import { generateText, type LanguageModel } from "ai";
 
-import { isVisible, recentMonthStart } from "../conversation/history.ts";
+import { isVisible, latestMonth } from "../conversation/history.ts";
 import { log } from "../log.ts";
 import type { Entry, MessageEntry } from "../record/chat-file.ts";
 import type { Conversation } from "../record/store.ts";
@@ -19,12 +19,8 @@ export function summarySource(
   now: Date,
   timeZone: string,
 ): MessageEntry[] {
-  const start = recentMonthStart(now, timeZone);
-  return entries.filter(
-    (e): e is MessageEntry =>
-      isVisible(e) &&
-      speaker[e.role] !== undefined &&
-      Date.parse(e.at) >= start,
+  return latestMonth(entries, now, timeZone).filter(
+    (e): e is MessageEntry => isVisible(e) && speaker[e.role] !== undefined,
   );
 }
 
