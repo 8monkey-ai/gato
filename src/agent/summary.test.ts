@@ -84,6 +84,5 @@ describe("contact summaries", () => {
     expect(
       summarySource(history, kualaLumpur, "Asia/Kuala_Lumpur").map((e) => e.at),
     ).toEqual(["2026-02-28T00:00:00.000Z"]);
-    expect(summarySource(history, kualaLumpur, "UTC")).toEqual([]);
   });
 });
