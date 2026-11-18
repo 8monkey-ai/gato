@@ -50,7 +50,8 @@ All configuration is in environment variables. Invalid values stop the startup w
 | `SKILLS_DIR`                       | (required)                     | The mounted skills checkout.                                                                                                  |
 | `PROMPTS_DIR`                      | (the built-in prompts)         | A mounted prompts folder. It replaces all built-in prompts, so it must contain each file of `prompts/`.                       |
 | `AGENT_COUNTRY`                    | (required)                     | `MY` or `PH`.                                                                                                                 |
-| `AGENT_TIMEZONE`                   | `UTC`                          | IANA timezone for today's date, summaries, and nudge hours.                                                                   |
+| `AGENT_TIMEZONE`                   | `UTC`                          | IANA timezone for today's date, summaries, the recent-history window, and nudge hours.                                        |
+| `AGENT_RECENT_HISTORY`             | `false`                        | When `true`, the agent sees only the messages of the latest calendar month. `chat.txt` and the attachments stay complete.     |
 | `HTTP_PORT`                        | `3000`                         | Port for webhooks and `/health`.                                                                                              |
 | `OPENROUTER_API_KEY`               | (required)                     | OpenRouter key.                                                                                                               |
 | `OPENROUTER_BASE_URL`              | `https://openrouter.ai/api/v1` | OpenRouter API address.                                                                                                       |

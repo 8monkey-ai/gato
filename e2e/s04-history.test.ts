@@ -131,6 +131,50 @@ test("§4 storage that is not available prevents startup", async () => {
   expect(await app.proc.exited).toBe(1);
 });
 
+const daysAgo = (days: number) => minutesAgo(days * 24 * 60);
+
+const monthsOld = `[${daysAgo(32)}] customer {"ref":"old-1","attachments":[{"kind":"image","source":"x","file":"attachments/old.jpg"}]}
+  Old question
+
+[${daysAgo(31.9)}] agent {"delivery":"sent"}
+  Old answer
+
+[${daysAgo(2)}] customer {"ref":"new-1"}
+  Recent question
+`;
+
+async function startWithOldHistory(env: Record<string, string> = {}) {
+  world = await createWorld();
+  const folder = join(world.dataDir, world.telegram.connectionId, "42");
+  await writeChat(world.dataDir, world.telegram.connectionId, "42", monthsOld);
+  await Bun.write(join(folder, "attachments", "old.jpg"), "image bytes");
+  await world.start(env);
+  world.telegram.push(42, { text: "Hi" });
+  await waitUntil(() => world.telegram.sent.length);
+  return folder;
+}
+
+test("§4 without the recent-history setting, the model sees messages older than one month", async () => {
+  await startWithOldHistory();
+  expect(visible(world.llm.mainRequests()[0]!).map(([, text]) => text)).toEqual(
+    ["Old question <image_url>", "Old answer", "Recent question", "Hi"],
+  );
+});
+
+test("§4 the recent-history setting limits the model to the latest month and keeps chat.txt and attachments", async () => {
+  const folder = await startWithOldHistory({ AGENT_RECENT_HISTORY: "true" });
+  expect(visible(world.llm.mainRequests()[0]!)).toEqual([
+    ["user", "Recent question"],
+    ["user", "Hi"],
+  ]);
+  const text = await Bun.file(join(folder, "chat.txt")).text();
+  expect(text).toContain("  Old question");
+  expect(text).toContain("  Old answer");
+  expect(await Bun.file(join(folder, "attachments", "old.jpg")).text()).toBe(
+    "image bytes",
+  );
+});
+
 test("§4 tool activity of an earlier turn never reaches the model", async () => {
   world = await createWorld();
   world.llm.respond((request) => {

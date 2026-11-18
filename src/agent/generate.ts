@@ -8,10 +8,11 @@ import {
 
 import type { Connection } from "../channels/channel.ts";
 import type { Config } from "../config.ts";
+import { recentMonthStart } from "../conversation/history.ts";
 import type { createDelivery } from "../delivery/deliver.ts";
 import { createPartSplitter } from "../delivery/parts.ts";
 import { log, redact, reportProblems } from "../log.ts";
-import type { Trigger } from "../record/chat-file.ts";
+import type { Entry, Trigger } from "../record/chat-file.ts";
 import type { Conversation } from "../record/store.ts";
 import {
   type Instructions,
@@ -96,7 +97,9 @@ async function turnMessages(config: Config, prompts: Prompts, turn: Turn) {
   });
   const messages = await buildContext(
     conversation,
-    entries,
+    config.recentHistoryOnly
+      ? recentEntries(entries, config.timezone)
+      : entries,
     connection,
     prepare,
     summary,
@@ -111,6 +114,11 @@ async function turnMessages(config: Config, prompts: Prompts, turn: Turn) {
         : undefined;
   if (trigger) messages.push({ role: "user", content: trigger });
   return messages;
+}
+
+function recentEntries(entries: readonly Entry[], timeZone: string) {
+  const start = recentMonthStart(new Date(), timeZone);
+  return entries.filter((entry) => Date.parse(entry.at) >= start);
 }
 
 function systemPrompt(

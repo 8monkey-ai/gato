@@ -109,7 +109,7 @@ Migrating existing data is a separate concern. The harness defines the chat-fold
 
 ### What the agent sees
 
-Model context uses the continuing chat's eligible messages in chronological order. The latest dated contact summary from summary.txt provides private context when available.
+Model context uses the continuing chat's eligible messages in chronological order. An optional recent-history setting limits these messages to the latest one calendar month. The latest dated contact summary from summary.txt provides private context when available. Limiting the model's context never truncates chat.txt or deletes attachments.
 
 Customer, operator, and workflow contributions retain their attribution. Internal operating notes and undelivered failed or superseded output stay out of ordinary conversational context but remain available for investigation. Delivered messages remain part of the conversation even if their turn later failed or was interrupted; unsent drafts must never be presented as delivered.
 
@@ -262,7 +262,7 @@ These are provider-supplied tools; the harness owns the connection and permissio
 
 Each instance serves one configured country and may enable several channel/account connections, with exclusive access to its persistent conversation storage. The application runs as a container on any suitable service. Hosting, releases, credentials, network setup, backups, and restoration belong to the external container/storage platform. The harness reads restored chat folders when storage is reattached and needs no built-in backup service or dedicated administration interface.
 
-Deployment configuration covers enabled channel adapters and accounts, their capability fallbacks, handoff labels, MCP connections, the skills mount, the optional prompts mount, country, base and optional summary models, attachment preparation models, response/work limits, persistent storage, delivery, and nudge policy. Dates and schedules default to UTC, with a configurable timezone applied consistently to today's date, summaries, and operating hours. Country does not implicitly select timezone; timezone changes do not rewrite event times or reset inactivity.
+Deployment configuration covers enabled channel adapters and accounts, their capability fallbacks, handoff labels, MCP connections, the skills mount, the optional prompts mount, country, base and optional summary models, attachment preparation models, response/work limits, persistent storage, delivery, and nudge policy. Dates and schedules default to UTC, with a configurable timezone applied consistently to today's date, summaries, the recent-history window, and operating hours. Country does not implicitly select timezone; timezone changes do not rewrite event times or reset inactivity.
 
 Readiness requires validation of enabled integrations, instructions, country, configured models, limits, and writable storage. An omitted summary model is valid and selects the base model. Omitted attachment-preparation models are valid and select direct file input for their categories. Disabled channels or MCP connections require neither credentials nor availability; a deployment can replace respond.io entirely. Unavailable dependencies, damaged histories, and nudge readiness are visible to operators. Logs connect the customer message, agent work, tool action, and delivery while protecting credentials and personal information.
 

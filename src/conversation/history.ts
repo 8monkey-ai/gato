@@ -31,3 +31,8 @@ export function agentActivity(entries: readonly Entry[]): number[] {
     )
     .map((e) => Date.parse(e.at));
 }
+
+export const recentMonthStart = (now: Date, timeZone: string) =>
+  Temporal.Instant.fromEpochMilliseconds(now.getTime())
+    .toZonedDateTimeISO(timeZone)
+    .subtract({ months: 1 }).epochMilliseconds;
